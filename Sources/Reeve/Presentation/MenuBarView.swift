@@ -12,6 +12,9 @@ struct MenuBarView: View {
     @ObservedObject var overlay: OverlayController
     @State private var selectedProcess: ProcessRecord?
     @State private var sortMode: SortMode = .memory
+    @State private var searchText: String = ""
+
+    private var isSearching: Bool { !searchText.isEmpty }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -30,26 +33,47 @@ struct MenuBarView: View {
     }
 
     private var header: some View {
-        HStack {
-            Text("Reeve")
-                .font(.headline)
-            Spacer()
-            Text(engine.snapshot.sampledAt, style: .time)
-                .font(.caption.monospacedDigit())
-                .foregroundStyle(.secondary)
+        VStack(spacing: 6) {
+            HStack {
+                Text("Reeve")
+                    .font(.headline)
+                Spacer()
+                Text(engine.snapshot.sampledAt, style: .time)
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.secondary)
+            }
+            TextField("Search processes", text: $searchText)
+                .textFieldStyle(.roundedBorder)
+                .font(.caption)
         }
         .padding(.horizontal, 12)
-        .padding(.vertical, 8)
+        .padding(.top, 8)
+        .padding(.bottom, 6)
     }
 
     private var processList: some View {
         VStack(spacing: 0) {
-            ForEach(sortedProcesses.prefix(8)) { process in
-                ProcessRow(process: process) {
-                    selectedProcess = process
+            let list = isSearching ? filteredProcesses : Array(sortedProcesses.prefix(8))
+            if list.isEmpty {
+                Text("No matches")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+            } else {
+                ForEach(list) { process in
+                    ProcessRow(process: process) {
+                        selectedProcess = process
+                    }
                 }
             }
         }
+    }
+
+    private var filteredProcesses: [ProcessRecord] {
+        engine.snapshot.processes
+            .filter { $0.name.localizedCaseInsensitiveContains(searchText) }
+            .sorted { $0.residentMemory > $1.residentMemory }
     }
 
     private var sortedProcesses: [ProcessRecord] {
