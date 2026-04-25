@@ -3,6 +3,7 @@ import ReeveKit
 
 struct MenuBarView: View {
     @ObservedObject var engine: MonitoringEngine
+    @ObservedObject var overlay: OverlayController
     @State private var selectedProcess: ProcessRecord?
 
     var body: some View {
@@ -49,6 +50,13 @@ struct MenuBarView: View {
             Text("\(engine.snapshot.processes.count) processes")
                 .font(.caption)
                 .foregroundStyle(.secondary)
+            Spacer()
+            Button(overlay.isVisible ? "Hide Overlay" : "Overlay") {
+                overlay.toggle()
+            }
+            .buttonStyle(.plain)
+            .font(.caption)
+            .foregroundStyle(overlay.isVisible ? .primary : .secondary)
             Spacer()
             Button("Quit") { NSApp.terminate(nil) }
                 .buttonStyle(.plain)
