@@ -90,7 +90,7 @@ final class MonitoringEngineTests: XCTestCase {
 
     func testRuleCooldownBlocksSecondFiring() async throws {
         let engine = MonitoringEngine(autoStart: false)
-        engine.windowVisible = true  // 1s interval so we can get two cycles in < 2s
+        engine.showWindow(id: "test")  // 1s interval so we can get two cycles in < 2s
         engine.rules = [Rule(
             name: "CooldownBlock",
             cooldown: .seconds(60),

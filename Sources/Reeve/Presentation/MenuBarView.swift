@@ -14,12 +14,8 @@ struct MenuBarView: View {
             footer
         }
         .frame(width: 300)
-        .onAppear {
-            engine.windowVisible = true
-        }
-        .onDisappear {
-            engine.windowVisible = false
-        }
+        .onAppear { engine.showWindow(id: "menuBar") }
+        .onDisappear { engine.hideWindow(id: "menuBar") }
         .sheet(item: $selectedProcess) { process in
             ActionSheet(process: process)
         }

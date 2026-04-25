@@ -19,8 +19,12 @@ public final class MonitoringEngine: ObservableObject {
 
     /// Rules evaluated against every snapshot. Set before calling `start()`.
     public var rules: [Rule] = []
-    // Presentation layer sets this to adjust poll frequency.
-    public var windowVisible = false
+    // Each visible window holds a token; polling is fast while any token is registered.
+    private var visibilityTokens: Set<String> = []
+    public var windowVisible: Bool { !visibilityTokens.isEmpty }
+
+    public func showWindow(id: String) { visibilityTokens.insert(id) }
+    public func hideWindow(id: String) { visibilityTokens.remove(id) }
 
     private let sampler = ProcessSampler()
     private var pollingTask: Task<Void, Never>?
