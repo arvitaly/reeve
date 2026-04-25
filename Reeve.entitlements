@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- Required for Hardened Runtime + notarization. Reeve uses no JIT,
+         no Apple Script, no unsigned executable memory. -->
+    <key>com.apple.security.app-sandbox</key>
+    <false/>
+    <!-- Reeve calls kill(), setpriority(), proc_listallpids(), proc_pidinfo(),
+         and proc_pid_rusage() on the current user's processes. App Sandbox
+         would block all of these, so we deliberately opt out. The scope of
+         access is explicitly limited to public, documented APIs (libproc.h). -->
+</dict>
+</plist>

@@ -28,6 +28,17 @@ final class ProcessSamplerTests: XCTestCase {
         }
     }
 
+    func testDiskRatesAreNonNegativeOnSecondSample() async {
+        let sampler = ProcessSampler()
+        _ = await sampler.sample()
+        try? await Task.sleep(for: .milliseconds(200))
+        let snapshot = await sampler.sample()
+        for process in snapshot.processes {
+            XCTAssertGreaterThanOrEqual(process.diskReadRate, 0)
+            XCTAssertGreaterThanOrEqual(process.diskWriteRate, 0)
+        }
+    }
+
     func testPreflightUnknownEffectHasReason() {
         let record = ProcessRecord(pid: 1, name: "test", residentMemory: 0, cpuPercent: 0)
         for kind: Action.Kind in [.terminate, .kill] {

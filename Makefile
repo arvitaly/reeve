@@ -2,8 +2,21 @@ BUNDLE     = Reeve.app
 BINARY     = $(BUNDLE)/Contents/MacOS/Reeve
 INFOPLIST  = $(BUNDLE)/Contents/Info.plist
 CONFIG    ?= debug
+VERSION   ?= 0.1.0
 
-.PHONY: build run clean
+# Filled in by the developer; leave blank to skip codesigning.
+# export SIGN_IDENTITY="Developer ID Application: Your Name (TEAMID)"
+# export APPLE_ID="you@example.com"
+# export TEAM_ID="XXXXXXXXXX"
+# export NOTARIZE_PASSWORD="@keychain:notarytool"
+SIGN_IDENTITY ?=
+APPLE_ID      ?=
+TEAM_ID       ?=
+NOTARIZE_PASSWORD ?=
+
+ZIPFILE = Reeve-$(VERSION).zip
+
+.PHONY: build run release sign notarize clean
 
 build:
 	swift build --target Reeve -c $(CONFIG)
@@ -18,8 +31,8 @@ _plist:
   <key>CFBundleExecutable</key><string>Reeve</string>\n\
   <key>CFBundleIdentifier</key><string>com.reeve.app</string>\n\
   <key>CFBundleName</key><string>Reeve</string>\n\
-  <key>CFBundleVersion</key><string>0.1</string>\n\
-  <key>CFBundleShortVersionString</key><string>0.1</string>\n\
+  <key>CFBundleVersion</key><string>$(VERSION)</string>\n\
+  <key>CFBundleShortVersionString</key><string>$(VERSION)</string>\n\
   <key>LSMinimumSystemVersion</key><string>13.0</string>\n\
   <key>LSUIElement</key><true/>\n\
   <key>NSPrincipalClass</key><string>NSApplication</string>\n\
@@ -29,5 +42,36 @@ _plist:
 run: build
 	open $(BUNDLE)
 
+# ── Release ──────────────────────────────────────────────────────────────────
+
+release:
+	$(MAKE) build CONFIG=release VERSION=$(VERSION)
+	@if [ -n "$(SIGN_IDENTITY)" ]; then \
+	  $(MAKE) sign VERSION=$(VERSION); \
+	fi
+	ditto -c -k --keepParent $(BUNDLE) $(ZIPFILE)
+	@echo ""; shasum -a 256 $(ZIPFILE)
+	@echo "\nUpdate Casks/reeve.rb sha256 with the value above."
+
+sign:
+	codesign --deep --force --options runtime \
+	  --sign "$(SIGN_IDENTITY)" \
+	  --entitlements Reeve.entitlements \
+	  $(BUNDLE)
+	@echo "Signed: $(BUNDLE)"
+
+# Requires: APPLE_ID, TEAM_ID, NOTARIZE_PASSWORD env vars and a prior `make release`.
+notarize:
+	xcrun notarytool submit $(ZIPFILE) \
+	  --apple-id "$(APPLE_ID)" \
+	  --team-id "$(TEAM_ID)" \
+	  --password "$(NOTARIZE_PASSWORD)" \
+	  --wait
+	xcrun stapler staple $(BUNDLE)
+	rm -f $(ZIPFILE)
+	ditto -c -k --keepParent $(BUNDLE) $(ZIPFILE)
+	@echo ""; shasum -a 256 $(ZIPFILE)
+	@echo "\nUpdate Casks/reeve.rb sha256 with the notarized value above."
+
 clean:
-	rm -rf $(BUNDLE) .build
+	rm -rf $(BUNDLE) .build Reeve-*.zip

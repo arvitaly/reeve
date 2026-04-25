@@ -35,10 +35,17 @@ struct ActionSheet: View {
                     Text("(this app)").font(.caption).foregroundStyle(.secondary)
                 }
             }
-            Text("PID \(process.pid)  ·  \(process.formattedMemory)  ·  \(process.formattedCPU)")
+            Text(processSubtitle)
                 .font(.caption.monospacedDigit())
                 .foregroundStyle(.secondary)
         }
+    }
+
+    private var processSubtitle: String {
+        var parts = ["PID \(process.pid)", process.formattedMemory, process.formattedCPU]
+        if let r = process.formattedDiskRead  { parts.append(r) }
+        if let w = process.formattedDiskWrite { parts.append(w) }
+        return parts.joined(separator: "  ·  ")
     }
 
     private var actionMenu: some View {
