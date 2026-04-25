@@ -1,12 +1,20 @@
 import Darwin
 import Foundation
 
+/// Actor that reads live process data from the kernel using public libproc APIs.
+///
+/// CPU% is computed as a delta between consecutive calls to `sample()`. The first call
+/// returns 0% for all processes; meaningful values appear on the second call.
+///
+/// All system calls (`proc_listallpids`, `proc_pidinfo`, `proc_name`) are documented
+/// in `/usr/include/libproc.h` and the Darwin man pages. No private APIs are used.
 public actor ProcessSampler {
     private var cpuBaselines: [pid_t: UInt64] = [:]
     private var lastSampleTime: ContinuousClock.Instant = .now
 
     public init() {}
 
+    /// Captures a `SystemSnapshot` with current CPU and memory for every visible process.
     public func sample() -> SystemSnapshot {
         let now = ContinuousClock.now
         let elapsed = now - lastSampleTime

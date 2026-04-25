@@ -1,6 +1,10 @@
 import Darwin
 import Foundation
 
+/// The expected outcome of an action, from the perspective of observable system state.
+///
+/// `unknown` is a first-class value, not an error. If the effect cannot be determined
+/// in advance, that fact must be stated explicitly with a reason.
 public enum EstimatedEffect: Sendable {
     case known(String)
     // Every unknown effect must name the reason.
@@ -8,23 +12,41 @@ public enum EstimatedEffect: Sendable {
     case unknown(reason: String)
 }
 
+/// The result of running preflight analysis on an `Action` before execution.
 public struct PreflightResult: Sendable {
+    /// Human-readable description of exactly what will happen to which process.
     public let description: String
+    /// Whether the original state can be fully restored after the action.
     public let isReversible: Bool
+    /// The predicted effect on system resources.
     public let effect: EstimatedEffect
+    /// Non-fatal conditions the user should be aware of before confirming.
     public let warnings: [String]
 }
 
+/// Errors that can occur during `Action.execute()`.
 public enum ActionError: Error, Sendable {
+    /// The target process exited before or during execution.
     case processGone
+    /// The calling process lacks privilege to perform this action.
     case permissionDenied
+    /// An unexpected kernel error (errno value attached).
     case systemError(Int32)
 }
 
+/// A single, typed operation on a specific process.
+///
+/// Preflight is always safe to call; it reads current process state and returns
+/// a `PreflightResult` without modifying anything. Call `execute()` only after
+/// the user has reviewed and confirmed the preflight.
 public struct Action: Sendable {
     public let target: ProcessRecord
     public let kind: Kind
 
+    /// The set of mutations Reeve can perform on a process.
+    ///
+    /// Reversible actions (``renice(_:)``, ``suspend``) can be undone.
+    /// Irreversible actions (``terminate``, ``kill``) cannot.
     public enum Kind: Sendable {
         case terminate          // SIGTERM → SIGKILL after 3s, irreversible
         case kill               // SIGKILL immediately, irreversible
@@ -38,6 +60,10 @@ public struct Action: Sendable {
         self.kind = kind
     }
 
+    /// Analyzes what this action will do without performing it.
+    ///
+    /// Always safe to call. Reads current priority via `getpriority()` for renice;
+    /// all other cases use only the information already in `target`.
     public func preflight() -> PreflightResult {
         switch kind {
         case .terminate:
@@ -83,6 +109,10 @@ public struct Action: Sendable {
         }
     }
 
+    /// Executes the action against the live process.
+    ///
+    /// Throws `ActionError.processGone` immediately if the target no longer exists.
+    /// For `.terminate`, waits up to 3 seconds after SIGTERM before escalating to SIGKILL.
     public func execute() async throws {
         guard kill(target.pid, 0) == 0 else {
             throw ActionError.processGone
@@ -102,7 +132,9 @@ public struct Action: Sendable {
 
         case .renice(let priority):
             guard setpriority(PRIO_PROCESS, UInt32(target.pid), priority) == 0 else {
-                throw Darwin.errno == EPERM ? ActionError.permissionDenied : ActionError.systemError(Darwin.errno)
+                // setpriority returns EACCES (not EPERM) when non-root tries to lower below 0
+                let err = Darwin.errno
+                throw (err == EPERM || err == EACCES) ? ActionError.permissionDenied : ActionError.systemError(err)
             }
 
         case .suspend:

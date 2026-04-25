@@ -16,7 +16,6 @@ struct MenuBarView: View {
         .frame(width: 300)
         .onAppear {
             engine.windowVisible = true
-            engine.start()
         }
         .onDisappear {
             engine.windowVisible = false
