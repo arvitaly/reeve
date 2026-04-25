@@ -7,7 +7,7 @@ import ReeveKit
 /// The panel is hidden on first launch (overlays imposed unsolicited are hostile).
 /// Position is persisted automatically via autosave name — Cocoa writes to UserDefaults.
 @MainActor
-final class OverlayController: ObservableObject {
+final class OverlayController: NSObject, ObservableObject, NSWindowDelegate {
     @Published private(set) var isVisible = false
 
     private weak var engine: MonitoringEngine?
@@ -34,6 +34,13 @@ final class OverlayController: ObservableObject {
         panel?.orderOut(nil)
         isVisible = false
         engine?.hideWindow(id: "overlay")
+    }
+
+    nonisolated func windowWillClose(_ notification: Notification) {
+        Task { @MainActor in
+            self.isVisible = false
+            self.engine?.hideWindow(id: "overlay")
+        }
     }
 
     // MARK: -
@@ -67,6 +74,7 @@ final class OverlayController: ObservableObject {
         content.translatesAutoresizingMaskIntoConstraints = false
         p.contentView = content
 
+        p.delegate = self
         panel = p
         return p
     }
