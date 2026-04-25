@@ -21,7 +21,7 @@ struct ReeveApp: App {
         MenuBarExtra {
             MenuBarView(engine: state.engine, overlay: state.overlay)
         } label: {
-            Label("Reeve", systemImage: "memorychip")
+            MenuBarLabel(engine: state.engine)
         }
         .menuBarExtraStyle(.window)
     }
