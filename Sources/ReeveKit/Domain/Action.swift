@@ -53,6 +53,16 @@ public struct Action: Sendable {
         case renice(Int32)      // change nice value, reversible
         case suspend            // SIGSTOP, reversible
         case resume             // SIGCONT, one-directional
+
+        public var shortName: String {
+            switch self {
+            case .terminate:      return "Terminate"
+            case .kill:           return "Force Kill"
+            case .renice(let v):  return v < 0 ? "Raise Priority" : "Lower Priority"
+            case .suspend:        return "Suspend"
+            case .resume:         return "Resume"
+            }
+        }
     }
 
     public init(target: ProcessRecord, kind: Kind) {

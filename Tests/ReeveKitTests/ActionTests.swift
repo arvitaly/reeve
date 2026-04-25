@@ -54,6 +54,20 @@ final class ActionTests: XCTestCase {
         XCTAssertTrue(Action(target: record(pid: 1), kind: .kill).preflight().warnings.isEmpty)
     }
 
+    // MARK: Kind.shortName
+
+    func testShortNameIsNonEmptyForAllKinds() {
+        let kinds: [Action.Kind] = [.terminate, .kill, .renice(10), .renice(-1), .suspend, .resume]
+        for kind in kinds {
+            XCTAssertFalse(kind.shortName.isEmpty, "\(kind) has empty shortName")
+        }
+    }
+
+    func testShortNameReniceSign() {
+        XCTAssertTrue(Action.Kind.renice(-1).shortName.lowercased().contains("raise"))
+        XCTAssertTrue(Action.Kind.renice(10).shortName.lowercased().contains("lower"))
+    }
+
     // MARK: preflight — renice
 
     func testReniceIsReversible() {

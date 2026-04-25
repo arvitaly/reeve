@@ -5,6 +5,23 @@ import ReeveKit
 
 struct RulesSettingsView: View {
     @EnvironmentObject var appState: AppState
+
+    var body: some View {
+        TabView {
+            RulesTab()
+                .environmentObject(appState)
+                .tabItem { Label("Rules", systemImage: "slider.horizontal.3") }
+            LogTab(engine: appState.engine)
+                .tabItem { Label("Log", systemImage: "list.bullet.rectangle") }
+        }
+        .frame(width: 520, height: 380)
+    }
+}
+
+// MARK: - Rules tab
+
+private struct RulesTab: View {
+    @EnvironmentObject var appState: AppState
     @State private var editing: RuleSpec?
     @State private var isAdding = false
 
@@ -18,7 +35,6 @@ struct RulesSettingsView: View {
             Divider()
             toolbar
         }
-        .frame(width: 500, height: 340)
         .sheet(isPresented: $isAdding) {
             RuleEditSheet(spec: RuleSpec()) { appState.ruleSpecs.append($0) }
         }
@@ -74,7 +90,85 @@ struct RulesSettingsView: View {
     }
 }
 
-// MARK: - Row
+// MARK: - Log tab
+
+private struct LogTab: View {
+    @ObservedObject var engine: MonitoringEngine
+
+    private var sortedLog: [ActionLogEntry] {
+        engine.actionLog.reversed()
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            if engine.actionLog.isEmpty {
+                VStack(spacing: 8) {
+                    Image(systemName: "checkmark.circle")
+                        .font(.largeTitle)
+                        .foregroundStyle(.secondary)
+                    Text("No rules have fired yet")
+                        .foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                List(sortedLog) { entry in
+                    LogEntryRow(entry: entry)
+                }
+                .listStyle(.inset)
+            }
+            Divider()
+            HStack {
+                Text("\(engine.actionLog.count) entr\(engine.actionLog.count == 1 ? "y" : "ies")")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Spacer()
+                if !engine.actionLog.isEmpty {
+                    Button("Clear") { engine.clearLog() }
+                        .buttonStyle(.plain)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+        }
+    }
+}
+
+private struct LogEntryRow: View {
+    let entry: ActionLogEntry
+
+    var body: some View {
+        HStack(spacing: 10) {
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 6) {
+                    Text(entry.action.target.name)
+                        .fontWeight(.medium)
+                    Text("·")
+                        .foregroundStyle(.tertiary)
+                    Text(entry.ruleName)
+                        .foregroundStyle(.secondary)
+                }
+                Text("\(entry.preflight.description)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+            Spacer()
+            VStack(alignment: .trailing, spacing: 2) {
+                Text(entry.firedAt, style: .time)
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.secondary)
+                Text(entry.firedAt, style: .date)
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+            }
+        }
+        .padding(.vertical, 2)
+    }
+}
+
+// MARK: - Rule row
 
 private struct RuleSpecRow: View {
     @Binding var spec: RuleSpec
@@ -132,9 +226,9 @@ struct RuleEditSheet: View {
         self.onSave = onSave
         _spec = State(initialValue: spec)
         switch spec.condition {
-        case .cpuAbove(let v):     _condTag = State(initialValue: .cpu);    _cpuThreshold = State(initialValue: v)
+        case .cpuAbove(let v):      _condTag = State(initialValue: .cpu);    _cpuThreshold = State(initialValue: v)
         case .memoryAboveGB(let v): _condTag = State(initialValue: .memory); _memGB = State(initialValue: v)
-        case .nameContains(let s): _condTag = State(initialValue: .name);   _nameQuery = State(initialValue: s)
+        case .nameContains(let s):  _condTag = State(initialValue: .name);   _nameQuery = State(initialValue: s)
         }
     }
 

@@ -54,6 +54,9 @@ public final class MonitoringEngine: ObservableObject {
         }
     }
 
+    /// Removes all entries from the action log.
+    public func clearLog() { actionLog = [] }
+
     /// Cancels the polling loop. After `stop()`, call `start()` to resume.
     public func stop() {
         pollingTask?.cancel()

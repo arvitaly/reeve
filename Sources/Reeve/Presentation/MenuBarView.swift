@@ -1,10 +1,17 @@
 import SwiftUI
 import ReeveKit
 
+enum SortMode: String, CaseIterable {
+    case memory = "Mem"
+    case cpu = "CPU"
+    case disk = "Disk"
+}
+
 struct MenuBarView: View {
     @ObservedObject var engine: MonitoringEngine
     @ObservedObject var overlay: OverlayController
     @State private var selectedProcess: ProcessRecord?
+    @State private var sortMode: SortMode = .memory
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -37,7 +44,7 @@ struct MenuBarView: View {
 
     private var processList: some View {
         VStack(spacing: 0) {
-            ForEach(engine.snapshot.topByMemory.prefix(8)) { process in
+            ForEach(sortedProcesses.prefix(8)) { process in
                 ProcessRow(process: process) {
                     selectedProcess = process
                 }
@@ -45,11 +52,27 @@ struct MenuBarView: View {
         }
     }
 
+    private var sortedProcesses: [ProcessRecord] {
+        switch sortMode {
+        case .memory: return engine.snapshot.topByMemory
+        case .cpu:    return engine.snapshot.topByCPU
+        case .disk:   return engine.snapshot.topByDiskWrite
+        }
+    }
+
     private var footer: some View {
-        HStack {
-            Text("\(engine.snapshot.processes.count) processes")
-                .font(.caption)
+        HStack(spacing: 8) {
+            Text("\(engine.snapshot.processes.count)")
+                .font(.caption.monospacedDigit())
                 .foregroundStyle(.secondary)
+            Picker("Sort", selection: $sortMode) {
+                ForEach(SortMode.allCases, id: \.self) { mode in
+                    Text(mode.rawValue).tag(mode)
+                }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .frame(width: 100)
             Spacer()
             Button(overlay.isVisible ? "Hide Overlay" : "Overlay") {
                 overlay.toggle()
@@ -57,7 +80,6 @@ struct MenuBarView: View {
             .buttonStyle(.plain)
             .font(.caption)
             .foregroundStyle(overlay.isVisible ? .primary : .secondary)
-            Spacer()
             Button("Quit") { NSApp.terminate(nil) }
                 .buttonStyle(.plain)
                 .font(.caption)
