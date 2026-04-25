@@ -6,6 +6,7 @@ let package = Package(
     platforms: [.macOS(.v13)],
     products: [
         .library(name: "ReeveKit", targets: ["ReeveKit"]),
+        .executable(name: "Reeve", targets: ["Reeve"]),
     ],
     targets: [
         .target(
@@ -14,6 +15,11 @@ let package = Package(
             swiftSettings: [
                 .enableExperimentalFeature("StrictConcurrency"),
             ]
+        ),
+        .executableTarget(
+            name: "Reeve",
+            dependencies: ["ReeveKit"],
+            path: "Sources/Reeve"
         ),
         .testTarget(
             name: "ReeveKitTests",

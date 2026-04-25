@@ -22,7 +22,7 @@ public enum ActionError: Error, Sendable {
 }
 
 public struct Action: Sendable {
-    public let target: ProcessInfo
+    public let target: ProcessRecord
     public let kind: Kind
 
     public enum Kind: Sendable {
@@ -33,7 +33,7 @@ public struct Action: Sendable {
         case resume             // SIGCONT, one-directional
     }
 
-    public init(target: ProcessInfo, kind: Kind) {
+    public init(target: ProcessRecord, kind: Kind) {
         self.target = target
         self.kind = kind
     }

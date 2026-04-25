@@ -17,7 +17,7 @@ public actor ProcessSampler {
         var newBaselines: [pid_t: UInt64] = [:]
         newBaselines.reserveCapacity(pids.count)
 
-        let processes: [ProcessInfo] = pids.compactMap { pid in
+        let processes: [ProcessRecord] = pids.compactMap { pid in
             var taskInfo = proc_taskinfo()
             let size = Int32(MemoryLayout<proc_taskinfo>.size)
             guard proc_pidinfo(pid, PROC_PIDTASKINFO, 0, &taskInfo, size) == size else {
@@ -36,7 +36,7 @@ public actor ProcessSampler {
             proc_name(pid, &nameBuffer, UInt32(nameBuffer.count))
             let name = String(cString: nameBuffer)
 
-            return ProcessInfo(
+            return ProcessRecord(
                 pid: pid,
                 name: name.isEmpty ? "<\(pid)>" : name,
                 residentMemory: taskInfo.pti_resident_size,

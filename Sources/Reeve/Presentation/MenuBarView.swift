@@ -3,7 +3,7 @@ import ReeveKit
 
 struct MenuBarView: View {
     @ObservedObject var engine: MonitoringEngine
-    @State private var selectedProcess: ProcessInfo?
+    @State private var selectedProcess: ProcessRecord?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -66,7 +66,7 @@ struct MenuBarView: View {
 }
 
 struct ProcessRow: View {
-    let process: ProcessInfo
+    let process: ProcessRecord
     let onTap: () -> Void
 
     var body: some View {

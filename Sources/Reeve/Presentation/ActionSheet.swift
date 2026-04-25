@@ -2,7 +2,7 @@ import SwiftUI
 import ReeveKit
 
 struct ActionSheet: View {
-    let process: ProcessInfo
+    let process: ProcessRecord
     @Environment(\.dismiss) private var dismiss
     @State private var pending: (action: Action, preflight: PreflightResult)?
     @State private var isExecuting = false

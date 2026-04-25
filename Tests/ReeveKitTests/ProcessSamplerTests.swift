@@ -29,9 +29,9 @@ final class ProcessSamplerTests: XCTestCase {
     }
 
     func testPreflightUnknownEffectHasReason() {
-        let info = ProcessInfo(pid: 1, name: "test", residentMemory: 0, cpuPercent: 0)
+        let record = ProcessRecord(pid: 1, name: "test", residentMemory: 0, cpuPercent: 0)
         for kind: Action.Kind in [.terminate, .kill] {
-            let action = Action(target: info, kind: kind)
+            let action = Action(target: record, kind: kind)
             let preflight = action.preflight()
             if case .unknown(let reason) = preflight.effect {
                 XCTAssertFalse(reason.isEmpty, "unknown effect must state a reason")
@@ -40,14 +40,14 @@ final class ProcessSamplerTests: XCTestCase {
     }
 
     func testRenicePreflightIsReversible() {
-        let info = ProcessInfo(pid: 1, name: "test", residentMemory: 0, cpuPercent: 0)
-        let action = Action(target: info, kind: .renice(10))
+        let record = ProcessRecord(pid: 1, name: "test", residentMemory: 0, cpuPercent: 0)
+        let action = Action(target: record, kind: .renice(10))
         XCTAssertTrue(action.preflight().isReversible)
     }
 
     func testKillPreflightIsIrreversible() {
-        let info = ProcessInfo(pid: 1, name: "test", residentMemory: 0, cpuPercent: 0)
-        let action = Action(target: info, kind: .kill)
+        let record = ProcessRecord(pid: 1, name: "test", residentMemory: 0, cpuPercent: 0)
+        let action = Action(target: record, kind: .kill)
         XCTAssertFalse(action.preflight().isReversible)
     }
 }

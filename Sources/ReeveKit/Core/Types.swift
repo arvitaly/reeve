@@ -1,7 +1,7 @@
 import Foundation
 import Darwin
 
-public struct ProcessInfo: Identifiable, Sendable, Hashable {
+public struct ProcessRecord: Identifiable, Sendable, Hashable {
     public let pid: pid_t
     public let name: String
     public let residentMemory: UInt64
@@ -12,7 +12,7 @@ public struct ProcessInfo: Identifiable, Sendable, Hashable {
     // Self-referential audit: Reeve's PID is captured once at launch.
     // No special handling — if Reeve ranks high, it ranks high.
     public static let reevePID: pid_t = getpid()
-    public var isReeve: Bool { pid == ProcessInfo.reevePID }
+    public var isReeve: Bool { pid == ProcessRecord.reevePID }
 
     public var formattedMemory: String {
         ByteCountFormatter.string(fromByteCount: Int64(residentMemory), countStyle: .memory)
@@ -24,16 +24,16 @@ public struct ProcessInfo: Identifiable, Sendable, Hashable {
 }
 
 public struct SystemSnapshot: Sendable {
-    public let processes: [ProcessInfo]
+    public let processes: [ProcessRecord]
     public let sampledAt: Date
 
     public static let empty = SystemSnapshot(processes: [], sampledAt: .now)
 
-    public var topByMemory: [ProcessInfo] {
+    public var topByMemory: [ProcessRecord] {
         processes.sorted { $0.residentMemory > $1.residentMemory }
     }
 
-    public var topByCPU: [ProcessInfo] {
+    public var topByCPU: [ProcessRecord] {
         processes.sorted { $0.cpuPercent > $1.cpuPercent }
     }
 }
