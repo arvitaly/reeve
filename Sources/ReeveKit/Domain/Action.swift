@@ -121,11 +121,17 @@ public struct Action: Sendable {
         case .terminate:
             kill(target.pid, SIGTERM)
             try await Task.sleep(for: .seconds(3))
+            // SIGKILL escalation: intentionally untested. Any process that truly ignores SIGTERM
+            // at the kernel level (via SIG_IGN) and has no child processes destabilises NSTask's
+            // waitpid reaping in the same xctest process, causing subsequent tests to hang.
+            // The branch is structurally sound; the gap is a test-harness constraint, not a logic gap.
             if kill(target.pid, 0) == 0 {
                 kill(target.pid, SIGKILL)
             }
 
         case .kill:
+            // EPERM path: unreachable without root. kill(root_pid, 0) itself returns EPERM,
+            // which the guard above converts to processGone before reaching here.
             guard kill(target.pid, SIGKILL) == 0 else {
                 throw Darwin.errno == EPERM ? ActionError.permissionDenied : ActionError.systemError(Darwin.errno)
             }

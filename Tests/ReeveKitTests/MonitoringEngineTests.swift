@@ -98,7 +98,7 @@ final class MonitoringEngineTests: XCTestCase {
             makeAction: { rec in Action(target: rec, kind: .renice(0)) }
         )]
         engine.start()
-        try await Task.sleep(for: .milliseconds(1500))  // covers the continue branch on cycle 2
+        try await Task.sleep(for: .milliseconds(2500))  // covers the continue branch on cycle 2
         let count = engine.actionLog.filter { $0.ruleName == "CooldownBlock" }.count
         XCTAssertEqual(count, 1, "60s cooldown must block refire on second polling cycle")
     }
