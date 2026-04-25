@@ -25,6 +25,7 @@ private struct RulesTab: View {
     @State private var editing: RuleSpec?
     @State private var isAdding = false
 
+
     var body: some View {
         VStack(spacing: 0) {
             if appState.ruleSpecs.isEmpty {
@@ -210,6 +211,7 @@ struct RuleEditSheet: View {
     @State private var condTag: CondTag = .cpu
     @State private var cpuThreshold: Double = 50
     @State private var memGB: Double = 1.0
+    @State private var diskMBps: Double = 10.0
     @State private var nameQuery: String = ""
     @Environment(\.dismiss) private var dismiss
 
@@ -218,6 +220,7 @@ struct RuleEditSheet: View {
     enum CondTag: String, CaseIterable, Identifiable {
         case cpu = "CPU"
         case memory = "Memory"
+        case disk = "Disk"
         case name = "Name"
         var id: String { rawValue }
     }
@@ -226,9 +229,10 @@ struct RuleEditSheet: View {
         self.onSave = onSave
         _spec = State(initialValue: spec)
         switch spec.condition {
-        case .cpuAbove(let v):      _condTag = State(initialValue: .cpu);    _cpuThreshold = State(initialValue: v)
-        case .memoryAboveGB(let v): _condTag = State(initialValue: .memory); _memGB = State(initialValue: v)
-        case .nameContains(let s):  _condTag = State(initialValue: .name);   _nameQuery = State(initialValue: s)
+        case .cpuAbove(let v):             _condTag = State(initialValue: .cpu);    _cpuThreshold = State(initialValue: v)
+        case .memoryAboveGB(let v):        _condTag = State(initialValue: .memory); _memGB = State(initialValue: v)
+        case .diskWriteAboveMBps(let v):   _condTag = State(initialValue: .disk);   _diskMBps = State(initialValue: v)
+        case .nameContains(let s):         _condTag = State(initialValue: .name);   _nameQuery = State(initialValue: s)
         }
     }
 
@@ -280,7 +284,7 @@ struct RuleEditSheet: View {
             }
         }
         .padding(20)
-        .frame(width: 380, height: 300)
+        .frame(width: 380, height: 310)
     }
 
     @ViewBuilder
@@ -303,6 +307,15 @@ struct RuleEditSheet: View {
                 Text("GB")
                     .foregroundStyle(.secondary)
             }
+        case .disk:
+            HStack {
+                Text("Disk write above")
+                TextField("", value: $diskMBps, format: .number)
+                    .frame(width: 60)
+                    .multilineTextAlignment(.trailing)
+                Text("MB/s")
+                    .foregroundStyle(.secondary)
+            }
         case .name:
             HStack {
                 Text("Name contains")
@@ -315,6 +328,7 @@ struct RuleEditSheet: View {
         switch condTag {
         case .cpu:    return .cpuAbove(cpuThreshold)
         case .memory: return .memoryAboveGB(memGB)
+        case .disk:   return .diskWriteAboveMBps(diskMBps)
         case .name:   return .nameContains(nameQuery)
         }
     }
@@ -323,6 +337,7 @@ struct RuleEditSheet: View {
         switch condTag {
         case .cpu:    return cpuThreshold > 0
         case .memory: return memGB > 0
+        case .disk:   return diskMBps > 0
         case .name:   return !nameQuery.trimmingCharacters(in: .whitespaces).isEmpty
         }
     }

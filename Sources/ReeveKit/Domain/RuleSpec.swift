@@ -32,8 +32,9 @@ public struct RuleSpec: Identifiable, Codable, Sendable {
     // MARK: - Condition
 
     public enum ConditionKind: Codable, Sendable, Hashable {
-        case cpuAbove(Double)        // percent 0–100
-        case memoryAboveGB(Double)   // gigabytes
+        case cpuAbove(Double)             // percent 0–100
+        case memoryAboveGB(Double)        // gigabytes
+        case diskWriteAboveMBps(Double)   // megabytes per second
         case nameContains(String)
 
         public func matches(_ record: ProcessRecord) -> Bool {
@@ -42,6 +43,8 @@ public struct RuleSpec: Identifiable, Codable, Sendable {
                 return record.cpuPercent > pct
             case .memoryAboveGB(let gb):
                 return record.residentMemory > UInt64(gb * 1_073_741_824)
+            case .diskWriteAboveMBps(let mbps):
+                return record.diskWriteRate > UInt64(mbps * 1_048_576)
             case .nameContains(let query):
                 return record.name.localizedCaseInsensitiveContains(query)
             }
@@ -53,6 +56,8 @@ public struct RuleSpec: Identifiable, Codable, Sendable {
                 return "CPU > \(Int(pct))%"
             case .memoryAboveGB(let gb):
                 return String(format: "Memory > %.1f GB", gb)
+            case .diskWriteAboveMBps(let mbps):
+                return String(format: "Disk write > %.1f MB/s", mbps)
             case .nameContains(let s):
                 return "Name contains \"\(s)\""
             }

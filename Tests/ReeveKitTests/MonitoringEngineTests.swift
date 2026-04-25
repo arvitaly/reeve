@@ -115,4 +115,19 @@ final class MonitoringEngineTests: XCTestCase {
         try await Task.sleep(for: .milliseconds(300))
         XCTAssertTrue(engine.actionLog.isEmpty)
     }
+
+    func testClearLogEmptiesLog() async throws {
+        let engine = MonitoringEngine(autoStart: false)
+        engine.rules = [Rule(
+            name: "Fill",
+            cooldown: .seconds(0),
+            condition: { $0.isReeve },
+            makeAction: { rec in Action(target: rec, kind: .renice(0)) }
+        )]
+        engine.start()
+        try await Task.sleep(for: .milliseconds(500))
+        XCTAssertFalse(engine.actionLog.isEmpty)
+        engine.clearLog()
+        XCTAssertTrue(engine.actionLog.isEmpty)
+    }
 }

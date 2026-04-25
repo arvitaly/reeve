@@ -2,8 +2,14 @@ import XCTest
 @testable import ReeveKit
 
 final class RuleSpecTests: XCTestCase {
-    private func record(cpu: Double = 0, memBytes: UInt64 = 0, name: String = "test") -> ProcessRecord {
-        ProcessRecord(pid: 1, name: name, residentMemory: memBytes, cpuPercent: cpu)
+    private func record(
+        cpu: Double = 0,
+        memBytes: UInt64 = 0,
+        diskWriteBytes: UInt64 = 0,
+        name: String = "test"
+    ) -> ProcessRecord {
+        ProcessRecord(pid: 1, name: name, residentMemory: memBytes, cpuPercent: cpu,
+                      diskWriteRate: diskWriteBytes)
     }
 
     // MARK: ConditionKind.matches
@@ -30,6 +36,16 @@ final class RuleSpecTests: XCTestCase {
         XCTAssertFalse(RuleSpec.ConditionKind.memoryAboveGB(1.0).matches(record(memBytes: oneGB - 1)))
     }
 
+    func testDiskWriteAboveMBpsMatches() {
+        let tenMB: UInt64 = 10 * 1_048_576
+        XCTAssertTrue(RuleSpec.ConditionKind.diskWriteAboveMBps(10).matches(record(diskWriteBytes: tenMB + 1)))
+    }
+
+    func testDiskWriteAboveMBpsDoesNotMatchBelow() {
+        let tenMB: UInt64 = 10 * 1_048_576
+        XCTAssertFalse(RuleSpec.ConditionKind.diskWriteAboveMBps(10).matches(record(diskWriteBytes: tenMB - 1)))
+    }
+
     func testNameContainsMatchesCaseInsensitive() {
         XCTAssertTrue(RuleSpec.ConditionKind.nameContains("safari").matches(record(name: "Safari")))
     }
@@ -46,6 +62,10 @@ final class RuleSpecTests: XCTestCase {
 
     func testMemoryDisplayName() {
         XCTAssertTrue(RuleSpec.ConditionKind.memoryAboveGB(2.0).displayName.contains("2"))
+    }
+
+    func testDiskWriteDisplayName() {
+        XCTAssertTrue(RuleSpec.ConditionKind.diskWriteAboveMBps(50).displayName.contains("50"))
     }
 
     func testNameDisplayName() {
@@ -106,6 +126,12 @@ final class RuleSpecTests: XCTestCase {
         XCTAssertEqual(decoded.action, spec.action)
         XCTAssertEqual(decoded.cooldownSeconds, spec.cooldownSeconds)
         XCTAssertEqual(decoded.isEnabled, spec.isEnabled)
+        XCTAssertEqual(decoded.condition, spec.condition)
+    }
+
+    func testCodableRoundTripDiskCondition() throws {
+        let spec = RuleSpec(name: "disk-rule", condition: .diskWriteAboveMBps(25.5))
+        let decoded = try JSONDecoder().decode(RuleSpec.self, from: try JSONEncoder().encode(spec))
         XCTAssertEqual(decoded.condition, spec.condition)
     }
 }
