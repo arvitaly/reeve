@@ -173,6 +173,9 @@ private struct OverlayRow: View {
             }
             HStack(spacing: 4) {
                 kindButton("Suspend", kind: .suspend)
+                kindButton("Resume", kind: .resume)
+            }
+            HStack(spacing: 4) {
                 kindButton("Lower Priority", kind: .renice(10))
             }
             Button("Cancel", action: onBack)

@@ -70,6 +70,7 @@ public struct RuleSpec: Identifiable, Codable, Sendable {
         case terminate
         case kill
         case suspend
+        case resume
         case reniceDown
 
         public var displayName: String {
@@ -77,6 +78,7 @@ public struct RuleSpec: Identifiable, Codable, Sendable {
             case .terminate:  return "Terminate"
             case .kill:       return "Force Kill"
             case .suspend:    return "Suspend"
+            case .resume:     return "Resume"
             case .reniceDown: return "Lower Priority"
             }
         }
@@ -86,6 +88,7 @@ public struct RuleSpec: Identifiable, Codable, Sendable {
             case .terminate:  return .terminate
             case .kill:       return .kill
             case .suspend:    return .suspend
+            case .resume:     return .resume
             case .reniceDown: return .renice(10)
             }
         }

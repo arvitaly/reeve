@@ -75,7 +75,7 @@ final class RuleSpecTests: XCTestCase {
     // MARK: ActionKind
 
     func testAllActionKindsCovered() {
-        XCTAssertEqual(RuleSpec.ActionKind.allCases.count, 4)
+        XCTAssertEqual(RuleSpec.ActionKind.allCases.count, 5)
     }
 
     func testReniceDownMapsToRenice10() {
