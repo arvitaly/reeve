@@ -3,6 +3,7 @@ BINARY     = $(BUNDLE)/Contents/MacOS/Reeve
 INFOPLIST  = $(BUNDLE)/Contents/Info.plist
 CONFIG    ?= debug
 VERSION   ?= 0.1.0
+ARCH      := $(shell uname -m)
 
 # Filled in by the developer; leave blank to skip codesigning.
 # export SIGN_IDENTITY="Developer ID Application: Your Name (TEAMID)"
@@ -21,7 +22,7 @@ ZIPFILE = Reeve-$(VERSION).zip
 build:
 	swift build --target Reeve -c $(CONFIG)
 	mkdir -p $(BUNDLE)/Contents/MacOS
-	cp .build/arm64-apple-macosx/$(CONFIG)/Reeve $(BINARY)
+	cp .build/$(ARCH)-apple-macosx/$(CONFIG)/Reeve $(BINARY)
 	@$(MAKE) --no-print-directory _plist
 
 _plist:
