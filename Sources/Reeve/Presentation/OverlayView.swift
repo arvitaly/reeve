@@ -122,11 +122,13 @@ private struct OverlayRow: View {
     let onPickKind: (Action.Kind) -> Void
     let onConfirm: () -> Void
     let onBack: () -> Void
+    @Environment(\.iconCache) private var iconCache
 
     var body: some View {
         VStack(spacing: 0) {
             Button(action: onTap) {
                 HStack(spacing: 6) {
+                    processIcon
                     Text(process.name)
                         .lineLimit(1)
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -178,6 +180,18 @@ private struct OverlayRow: View {
                 .font(.caption2)
                 .foregroundStyle(.secondary)
                 .padding(.top, 2)
+        }
+    }
+
+    @ViewBuilder
+    private var processIcon: some View {
+        if let icon = iconCache.icon(for: process) {
+            Image(nsImage: icon)
+                .resizable()
+                .interpolation(.high)
+                .frame(width: 14, height: 14)
+        } else {
+            Color.clear.frame(width: 14, height: 14)
         }
     }
 

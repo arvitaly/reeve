@@ -11,10 +11,12 @@ final class OverlayController: ObservableObject {
     @Published private(set) var isVisible = false
 
     private weak var engine: MonitoringEngine?
+    private let iconCache: ProcessIconCache
     private var panel: NSPanel?
 
-    init(engine: MonitoringEngine) {
+    init(engine: MonitoringEngine, iconCache: ProcessIconCache) {
         self.engine = engine
+        self.iconCache = iconCache
     }
 
     func toggle() {
@@ -60,6 +62,7 @@ final class OverlayController: ObservableObject {
         guard let engine else { return p }
         let content = NSHostingView(rootView:
             OverlayView(engine: engine, onClose: { [weak self] in self?.hide() })
+                .environment(\.iconCache, iconCache)
         )
         content.translatesAutoresizingMaskIntoConstraints = false
         p.contentView = content

@@ -71,10 +71,12 @@ struct MenuBarView: View {
 struct ProcessRow: View {
     let process: ProcessRecord
     let onTap: () -> Void
+    @Environment(\.iconCache) private var iconCache
 
     var body: some View {
         Button(action: onTap) {
             HStack(spacing: 6) {
+                processIcon
                 Text(process.name)
                     .lineLimit(1)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -92,5 +94,17 @@ struct ProcessRow: View {
             .background(process.isReeve ? Color.accentColor.opacity(0.08) : .clear)
         }
         .buttonStyle(.plain)
+    }
+
+    @ViewBuilder
+    private var processIcon: some View {
+        if let icon = iconCache.icon(for: process) {
+            Image(nsImage: icon)
+                .resizable()
+                .interpolation(.high)
+                .frame(width: 16, height: 16)
+        } else {
+            Color.clear.frame(width: 16, height: 16)
+        }
     }
 }
