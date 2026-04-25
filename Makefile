@@ -38,6 +38,7 @@ _plist:
   <key>LSUIElement</key><true/>\n\
   <key>NSPrincipalClass</key><string>NSApplication</string>\n\
   <key>NSHighResolutionCapable</key><true/>\n\
+  <key>LSApplicationCategoryType</key><string>public.app-category.utilities</string>\n\
 </dict></plist>\n' > $(INFOPLIST)
 
 run: build

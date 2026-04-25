@@ -53,6 +53,7 @@ struct ActionSheet: View {
             actionButton("Terminate", kind: .terminate)
             actionButton("Force Kill", kind: .kill)
             actionButton("Suspend", kind: .suspend)
+            actionButton("Resume", kind: .resume)
             actionButton("Lower Priority", kind: .renice(10))
             Button("Cancel") { dismiss() }.buttonStyle(.plain).font(.caption)
         }
