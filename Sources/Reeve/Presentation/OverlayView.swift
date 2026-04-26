@@ -255,7 +255,7 @@ struct OverlayView: View {
         }
     }
 
-    // MARK: Pinned
+    // MARK: Pinned (card layout)
 
     @ViewBuilder
     private var pinnedContent: some View {
@@ -271,12 +271,78 @@ struct OverlayView: View {
             .padding(.vertical, 24)
         } else {
             ScrollView {
-                LazyVStack(spacing: 0) {
+                VStack(spacing: 6) {
                     ForEach(pinned) { group in
-                        groupBlock(group: group)
+                        pinnedCard(group: group)
                     }
                 }
-                .frame(maxWidth: .infinity)
+                .padding(8)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func pinnedCard(group: ApplicationGroup) -> some View {
+        let cap = memCap(for: group, in: appState.groupRuleSpecs)
+        let capGB = cap.map { Double($0) / 1_073_741_824 }
+        let severity = group.overallSeverity(cap: cap)
+        let memGB = Double(group.totalMemory) / 1_073_741_824
+
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 8) {
+                if let icon = group.icon {
+                    Image(nsImage: icon).resizable().interpolation(.high)
+                        .frame(width: 22, height: 22)
+                        .opacity(group.isSuspended ? 0.4 : 1.0)
+                } else {
+                    Color.clear.frame(width: 22, height: 22)
+                }
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(spacing: 4) {
+                        Text(group.displayName).font(.caption.weight(.medium)).lineLimit(1)
+                        if group.isSuspended {
+                            Text("paused")
+                                .font(.caption2.weight(.semibold))
+                                .foregroundStyle(.secondary)
+                                .padding(.horizontal, 4).padding(.vertical, 1)
+                                .background(Color.secondary.opacity(0.12))
+                                .clipShape(RoundedRectangle(cornerRadius: 3))
+                        } else if group.maxNiceValue > 0 {
+                            Text("nice +\(group.maxNiceValue)")
+                                .font(.caption2.weight(.semibold))
+                                .foregroundStyle(Color.rvAccent)
+                                .padding(.horizontal, 4).padding(.vertical, 1)
+                                .background(Color.rvAccent.opacity(0.12))
+                                .clipShape(RoundedRectangle(cornerRadius: 3))
+                        }
+                    }
+                    let metaMem = capGB.map { String(format: "%.1f GB / %.1f GB cap", memGB, $0) }
+                               ?? String(format: "%.1f GB", memGB)
+                    Text("\(metaMem) · \(String(format: "%.0f", group.totalCPU))% CPU")
+                        .font(.caption2.monospacedDigit())
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                SeverityDot(severity: severity)
+            }
+            if let _ = cap {
+                MiniBar(value: Double(group.totalMemory), cap: cap.map(Double.init),
+                        height: 4, severity: severity)
+            }
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background(Color.rvRowExpanded)
+        .clipShape(RoundedRectangle(cornerRadius: 7))
+        .overlay(RoundedRectangle(cornerRadius: 7).stroke(Color.primary.opacity(0.08), lineWidth: 0.5))
+        .contextMenu {
+            Button(group.displayName) {}.disabled(true)
+            Divider()
+            Button("Unpin from Widget") { togglePin(group.displayName) }
+            Button("Action…") { selectedGroupID = group.id }
+            Button("Open in Activity Monitor") {
+                NSWorkspace.shared.open(
+                    URL(fileURLWithPath: "/System/Applications/Utilities/Activity Monitor.app"))
             }
         }
     }

@@ -40,8 +40,10 @@ final class AppState: ObservableObject {
         requestNotificationAuthorization()
         observeGroupActionLog()
         hotkey.register { [weak overlay] in overlay?.toggle() }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-            overlay.show()
+        if UserDefaults.standard.bool(forKey: "overlayShowOnLaunch") {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                overlay.show()
+            }
         }
     }
 

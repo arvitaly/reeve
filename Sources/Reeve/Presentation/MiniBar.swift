@@ -4,9 +4,14 @@ import SwiftUI
 struct MiniBar: View {
     let value: Double    // current bytes
     let cap: Double?     // rule cap bytes, nil = no rule
-    let width: CGFloat
+    let width: CGFloat?  // nil = fill available width
     var height: CGFloat = 4
     let severity: Severity
+
+    init(value: Double, cap: Double?, width: CGFloat? = nil, height: CGFloat = 4, severity: Severity) {
+        self.value = value; self.cap = cap; self.width = width
+        self.height = height; self.severity = severity
+    }
 
     private static let absoluteMax: Double = 6 * 1_073_741_824  // 6 GB fallback scale
 
@@ -45,6 +50,7 @@ struct MiniBar: View {
             }
         }
         .frame(width: width, height: height)
+        .frame(maxWidth: width == nil ? .infinity : nil)
     }
 }
 
