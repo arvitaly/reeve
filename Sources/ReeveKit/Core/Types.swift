@@ -69,13 +69,19 @@ public struct SystemSnapshot: Sendable {
         processes.sorted { $0.residentMemory > $1.residentMemory }
     }
 
-    /// All processes sorted from highest to lowest CPU usage.
+    /// All processes sorted from highest to lowest CPU usage, memory as tiebreaker.
     public var topByCPU: [ProcessRecord] {
-        processes.sorted { $0.cpuPercent > $1.cpuPercent }
+        processes.sorted {
+            if $0.cpuPercent != $1.cpuPercent { return $0.cpuPercent > $1.cpuPercent }
+            return $0.residentMemory > $1.residentMemory
+        }
     }
 
-    /// All processes sorted from highest to lowest disk write rate.
+    /// All processes sorted from highest to lowest disk write rate, memory as tiebreaker.
     public var topByDiskWrite: [ProcessRecord] {
-        processes.sorted { $0.diskWriteRate > $1.diskWriteRate }
+        processes.sorted {
+            if $0.diskWriteRate != $1.diskWriteRate { return $0.diskWriteRate > $1.diskWriteRate }
+            return $0.residentMemory > $1.residentMemory
+        }
     }
 }
