@@ -245,7 +245,7 @@ Widget currently has one mode (expanded app list). Design specifies 4 modes: Com
 
 ## ADR-10: Menu Bar Icon
 
-**Status:** Proposed
+**Status:** Implemented
 
 **Context:**
 Currently `MenuBarLabel` shows CPU% as text. Design specifies: severity dot (7 px) by default; when any app is over its threshold → show that app's icon (14 px) + red dot + short mem value, with a danger-tinted pill background.

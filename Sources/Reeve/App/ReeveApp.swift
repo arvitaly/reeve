@@ -127,6 +127,7 @@ struct ReeveApp: App {
                 .environment(\.iconCache, state.iconCache)
         } label: {
             MenuBarLabel(engine: state.engine)
+                .environmentObject(state)
         }
         .menuBarExtraStyle(.window)
 
