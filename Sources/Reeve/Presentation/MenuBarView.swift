@@ -14,6 +14,7 @@ struct MenuBarView: View {
     @State private var selectedProcess: ProcessRecord?
     @State private var sortMode: SortMode = .memory
     @State private var searchText: String = ""
+    @State private var treeMode: Bool = false
 
     private var isSearching: Bool { !searchText.isEmpty }
 
@@ -21,7 +22,11 @@ struct MenuBarView: View {
         VStack(alignment: .leading, spacing: 0) {
             header
             Divider()
-            processList
+            if treeMode && !isSearching {
+                treeList
+            } else {
+                processList
+            }
             Divider()
             footer
         }
@@ -77,6 +82,29 @@ struct MenuBarView: View {
         }
     }
 
+    private static let treeDisplayLimit = 18
+
+    private var treeList: some View {
+        VStack(spacing: 0) {
+            let rows = engine.snapshot.buildTree()
+                .flatMap { $0.flattened() }
+                .prefix(Self.treeDisplayLimit)
+            if rows.isEmpty {
+                Text("Sampling…")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+            } else {
+                ForEach(Array(rows), id: \.id) { node in
+                    TreeProcessRow(node: node) {
+                        selectedProcess = node.record
+                    }
+                }
+            }
+        }
+    }
+
     private static let searchLimit = 20
 
     private var filteredProcesses: [ProcessRecord] {
@@ -110,14 +138,24 @@ struct MenuBarView: View {
             Text(processCountLabel)
                 .font(.caption.monospacedDigit())
                 .foregroundStyle(.secondary)
-            Picker("Sort", selection: $sortMode) {
-                ForEach(SortMode.allCases, id: \.self) { mode in
-                    Text(mode.rawValue).tag(mode)
+            if !treeMode {
+                Picker("Sort", selection: $sortMode) {
+                    ForEach(SortMode.allCases, id: \.self) { mode in
+                        Text(mode.rawValue).tag(mode)
+                    }
                 }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .frame(width: 100)
             }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .frame(width: 100)
+            Button {
+                treeMode.toggle()
+            } label: {
+                Image(systemName: treeMode ? "list.bullet.indent" : "list.bullet")
+                    .foregroundStyle(treeMode ? Color.accentColor : .secondary)
+            }
+            .buttonStyle(.plain)
+            .help(treeMode ? "Switch to flat list" : "Switch to process tree")
             Spacer()
             HStack(spacing: 3) {
                 Button(overlay.isVisible ? "Hide Overlay" : "Overlay") {
@@ -143,6 +181,71 @@ struct MenuBarView: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 6)
+    }
+}
+
+struct TreeProcessRow: View {
+    let node: ProcessTreeNode
+    let onTap: () -> Void
+    @Environment(\.iconCache) private var iconCache
+    @State private var isHovered = false
+
+    private static let maxIndentDepth = 4
+    private var indent: CGFloat { CGFloat(min(node.depth, Self.maxIndentDepth)) * 10 }
+    private var isLeaf: Bool { node.children.isEmpty }
+
+    var body: some View {
+        Button(action: onTap) {
+            HStack(spacing: 0) {
+                if node.depth > 0 {
+                    Color.clear.frame(width: indent)
+                    Image(systemName: "arrow.turn.down.right")
+                        .font(.system(size: 8))
+                        .foregroundStyle(.tertiary)
+                        .frame(width: 12)
+                }
+                HStack(spacing: 6) {
+                    processIcon
+                    Text(node.record.name)
+                        .lineLimit(1)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .foregroundStyle(node.depth == 0 ? .primary : .secondary)
+                    Text(node.record.formattedMemory)
+                        .font(.caption.monospacedDigit())
+                        .foregroundStyle(.secondary)
+                        .frame(width: 68, alignment: .trailing)
+                    Text(node.record.formattedCPU)
+                        .font(.caption.monospacedDigit())
+                        .foregroundStyle(.secondary)
+                        .frame(width: 48, alignment: .trailing)
+                }
+            }
+            .padding(.leading, node.depth == 0 ? 12 : 4)
+            .padding(.trailing, 12)
+            .padding(.vertical, node.depth == 0 ? 5 : 3)
+            .background(rowBackground)
+        }
+        .buttonStyle(.plain)
+        .onHover { isHovered = $0 }
+    }
+
+    private var rowBackground: Color {
+        if isHovered { return Color.primary.opacity(0.06) }
+        if node.record.isReeve { return Color.accentColor.opacity(0.08) }
+        return .clear
+    }
+
+    @ViewBuilder
+    private var processIcon: some View {
+        let size: CGFloat = node.depth == 0 ? 16 : 12
+        if let icon = iconCache.icon(for: node.record) {
+            Image(nsImage: icon)
+                .resizable()
+                .interpolation(.high)
+                .frame(width: size, height: size)
+        } else {
+            Color.clear.frame(width: size, height: size)
+        }
     }
 }
 

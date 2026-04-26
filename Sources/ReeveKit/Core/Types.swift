@@ -6,6 +6,8 @@ import Darwin
 /// `isReeve` is a structural property, not a filter. If Reeve ranks high, it ranks high.
 public struct ProcessRecord: Identifiable, Sendable, Hashable {
     public let pid: pid_t
+    /// Parent PID from proc_bsdshortinfo (pbsi_ppid). Zero when unavailable.
+    public let parentPID: pid_t
     public let name: String
     /// Resident set size in bytes.
     public let residentMemory: UInt64
@@ -23,10 +25,11 @@ public struct ProcessRecord: Identifiable, Sendable, Hashable {
     // No special handling — if Reeve ranks high, it ranks high.
     public init(
         pid: pid_t, name: String, residentMemory: UInt64, cpuPercent: Double,
-        diskReadRate: UInt64 = 0, diskWriteRate: UInt64 = 0
+        parentPID: pid_t = 0, diskReadRate: UInt64 = 0, diskWriteRate: UInt64 = 0
     ) {
         self.pid = pid; self.name = name; self.residentMemory = residentMemory
-        self.cpuPercent = cpuPercent; self.diskReadRate = diskReadRate; self.diskWriteRate = diskWriteRate
+        self.cpuPercent = cpuPercent; self.parentPID = parentPID
+        self.diskReadRate = diskReadRate; self.diskWriteRate = diskWriteRate
     }
 
     public static let reevePID: pid_t = getpid()
@@ -83,5 +86,54 @@ public struct SystemSnapshot: Sendable {
             if $0.diskWriteRate != $1.diskWriteRate { return $0.diskWriteRate > $1.diskWriteRate }
             return $0.residentMemory > $1.residentMemory
         }
+    }
+
+    /// Builds the parent-child process tree, returning root nodes (those whose parent is absent
+    /// from this snapshot). Roots and siblings are sorted by resident memory descending.
+    public func buildTree() -> [ProcessTreeNode] {
+        let byPID = Dictionary(uniqueKeysWithValues: processes.map { ($0.pid, $0) })
+        var childPIDs: [pid_t: [pid_t]] = [:]
+        var rootPIDs: [pid_t] = []
+
+        for process in processes {
+            let ppid = process.parentPID
+            if ppid != 0 && byPID[ppid] != nil {
+                childPIDs[ppid, default: []].append(process.pid)
+            } else {
+                rootPIDs.append(process.pid)
+            }
+        }
+
+        func buildNode(_ pid: pid_t, depth: Int) -> ProcessTreeNode {
+            let record = byPID[pid]!
+            let children = (childPIDs[pid] ?? [])
+                .compactMap { byPID[$0] }
+                .sorted { $0.residentMemory > $1.residentMemory }
+                .map { buildNode($0.pid, depth: depth + 1) }
+            return ProcessTreeNode(record: record, children: children, depth: depth)
+        }
+
+        return rootPIDs
+            .compactMap { byPID[$0] }
+            .sorted { $0.residentMemory > $1.residentMemory }
+            .map { buildNode($0.pid, depth: 0) }
+    }
+}
+
+/// A node in the process parent-child tree produced by `SystemSnapshot.buildTree()`.
+public struct ProcessTreeNode: Sendable, Identifiable {
+    public let record: ProcessRecord
+    public let children: [ProcessTreeNode]
+    public let depth: Int
+    public var id: pid_t { record.pid }
+
+    /// Total memory of this subtree (self + all descendants).
+    public var subtreeMemory: UInt64 {
+        children.reduce(record.residentMemory) { $0 + $1.subtreeMemory }
+    }
+
+    /// Depth-first flattening of this node and all descendants.
+    public func flattened() -> [ProcessTreeNode] {
+        [self] + children.flatMap { $0.flattened() }
     }
 }

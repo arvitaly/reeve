@@ -118,4 +118,81 @@ final class TypesTests: XCTestCase {
     func testTopByDiskWriteEmptySnapshot() {
         XCTAssertTrue(SystemSnapshot.empty.topByDiskWrite.isEmpty)
     }
+
+    // MARK: buildTree
+
+    private func rec(_ pid: pid_t, _ ppid: pid_t, mem: UInt64 = 0) -> ProcessRecord {
+        ProcessRecord(pid: pid, name: "\(pid)", residentMemory: mem, cpuPercent: 0, parentPID: ppid)
+    }
+
+    func testBuildTreeEmptySnapshot() {
+        XCTAssertTrue(SystemSnapshot.empty.buildTree().isEmpty)
+    }
+
+    func testBuildTreeSingleRoot() {
+        let p = rec(100, 0)
+        let snap = SystemSnapshot(processes: [p], sampledAt: .now)
+        let roots = snap.buildTree()
+        XCTAssertEqual(roots.count, 1)
+        XCTAssertEqual(roots[0].record.pid, 100)
+        XCTAssertEqual(roots[0].depth, 0)
+    }
+
+    func testBuildTreeParentChildRelationship() {
+        let parent = rec(10, 1)
+        let child  = rec(20, 10)
+        let snap = SystemSnapshot(processes: [parent, child], sampledAt: .now)
+        let roots = snap.buildTree()
+        XCTAssertEqual(roots.count, 1)
+        XCTAssertEqual(roots[0].record.pid, 10)
+        XCTAssertEqual(roots[0].children.count, 1)
+        XCTAssertEqual(roots[0].children[0].record.pid, 20)
+        XCTAssertEqual(roots[0].children[0].depth, 1)
+    }
+
+    func testBuildTreeOrphanBecomesRoot() {
+        // ppid 999 is not in the snapshot — child becomes a root
+        let orphan = rec(50, 999)
+        let snap = SystemSnapshot(processes: [orphan], sampledAt: .now)
+        let roots = snap.buildTree()
+        XCTAssertEqual(roots.count, 1)
+        XCTAssertEqual(roots[0].record.pid, 50)
+    }
+
+    func testBuildTreeSiblingsSortedByMemory() {
+        let parent = rec(1, 0)
+        let bigChild   = rec(10, 1, mem: 200)
+        let smallChild = rec(20, 1, mem: 100)
+        let snap = SystemSnapshot(processes: [parent, smallChild, bigChild], sampledAt: .now)
+        let children = snap.buildTree()[0].children
+        XCTAssertEqual(children[0].record.pid, 10)
+        XCTAssertEqual(children[1].record.pid, 20)
+    }
+
+    func testBuildTreeDepthThreeLevels() {
+        let root  = rec(1, 0)
+        let mid   = rec(2, 1)
+        let leaf  = rec(3, 2)
+        let snap = SystemSnapshot(processes: [root, mid, leaf], sampledAt: .now)
+        let roots = snap.buildTree()
+        XCTAssertEqual(roots[0].depth, 0)
+        XCTAssertEqual(roots[0].children[0].depth, 1)
+        XCTAssertEqual(roots[0].children[0].children[0].depth, 2)
+    }
+
+    func testSubtreeMemorySumsDescendants() {
+        let parent = rec(1, 0, mem: 100)
+        let child  = rec(2, 1, mem: 200)
+        let snap = SystemSnapshot(processes: [parent, child], sampledAt: .now)
+        XCTAssertEqual(snap.buildTree()[0].subtreeMemory, 300)
+    }
+
+    func testFlattenedOrderIsDepthFirst() {
+        let root  = rec(1, 0)
+        let child = rec(2, 1)
+        let snap = SystemSnapshot(processes: [root, child], sampledAt: .now)
+        let flat = snap.buildTree()[0].flattened()
+        XCTAssertEqual(flat[0].record.pid, 1)
+        XCTAssertEqual(flat[1].record.pid, 2)
+    }
 }
