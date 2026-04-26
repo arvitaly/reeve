@@ -36,6 +36,7 @@ struct OverlayView: View {
     @State private var pendingRuleGroup: ApplicationGroup?
     @State private var toastMessage: String?
     @State private var toastTask: Task<Void, Never>?
+    @State private var seenRuleLogCount = 0
 
     private var isSearching: Bool { !searchText.isEmpty }
 
@@ -107,6 +108,12 @@ struct OverlayView: View {
         .animation(.easeOut(duration: 0.2), value: pendingChipGroup?.id)
         .animation(.easeOut(duration: 0.2), value: pendingRuleGroup?.id)
         .animation(.easeOut(duration: 0.15), value: toastMessage)
+        .onAppear { seenRuleLogCount = groupRuleEngine.actionLog.count }
+        .onChange(of: groupRuleEngine.actionLog.count) { newCount in
+            defer { seenRuleLogCount = newCount }
+            guard newCount > seenRuleLogCount, let entry = groupRuleEngine.actionLog.last else { return }
+            showToast("Rule: \(entry.actionName) → \(entry.appName)")
+        }
         .sheet(item: $pendingAction) { action in
             switch action {
             case .process(let p): ActionSheet(process: p)

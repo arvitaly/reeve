@@ -259,6 +259,14 @@ struct GroupRuleEditSheet: View {
                         Text($0.displayName).tag($0)
                     }
                 }
+                let isReversible = [GroupRuleSpec.ActionKind.suspend, .resume, .reniceDown].contains(spec.action)
+                Label(
+                    isReversible ? "Reversible" : "Irreversible — effect cannot be undone",
+                    systemImage: isReversible ? "arrow.uturn.left.circle" : "exclamationmark.triangle"
+                )
+                .font(.caption2)
+                .foregroundStyle(isReversible ? Color.secondary : Color.red)
+                .padding(.top, -4)
 
                 HStack {
                     Text("Cooldown")
