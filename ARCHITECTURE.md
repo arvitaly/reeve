@@ -168,7 +168,7 @@ Each app row needs a visual fill bar showing current memory vs cap (if a rule ex
 
 ## ADR-7: Inline Rule Creation (Sentence Syntax)
 
-**Status:** Proposed
+**Status:** Implemented
 
 **Context:**
 Currently rule creation requires: open Settings → Rules tab → Add Rule → fill form → Save. The design moves this entirely inside the popover. Two entry points:
@@ -196,7 +196,7 @@ The sheet uses a sentence syntax: `When [App] total memory exceeds [2.5 GB ± ] 
 
 ## ADR-8: History Buffer (Sparklines)
 
-**Status:** Proposed
+**Status:** Implemented
 
 **Context:**
 Dashboard widget mode and main window detail panel require 30-sample rolling history per app group (memory + CPU over time). Currently there is no history — each poll replaces the previous snapshot entirely.
@@ -220,7 +220,7 @@ History in `GroupRuleEngine` (Reeve target): simpler, already has per-group data
 
 ## ADR-9: Widget Modes
 
-**Status:** Proposed
+**Status:** Implemented
 
 **Context:**
 Widget currently has one mode (expanded app list). Design specifies 4 modes: Compact (top 5), Expanded (full list), Pinned (user-pinned apps only), Dashboard (totals + sparklines). Mode switcher lives in the widget chrome header.

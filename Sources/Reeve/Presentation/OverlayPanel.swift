@@ -88,6 +88,7 @@ final class OverlayController: NSObject, ObservableObject, NSWindowDelegate {
         let content = NSHostingView(rootView:
             OverlayView(engine: engine, onClose: { [weak self] in self?.hide() })
                 .environmentObject(appState)
+                .environmentObject(appState.groupRuleEngine)
                 .environment(\.iconCache, iconCache)
         )
         content.autoresizingMask = [.width, .height]

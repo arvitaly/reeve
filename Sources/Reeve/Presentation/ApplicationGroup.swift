@@ -179,9 +179,6 @@ struct ApplicationGroupRow: View {
         .contentShape(Rectangle())
         .onTapGesture { onSelect() }
         .onHover { isHovered = $0 }
-        .contextMenu {
-            Button("Action…") { onSelect() }
-        }
     }
 
     private var rowBackground: Color {

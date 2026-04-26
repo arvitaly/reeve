@@ -23,6 +23,9 @@ struct MenuBarView: View {
     @State private var selectedGroupID: pid_t?
     @State private var pendingChipGroup: ApplicationGroup?
     @State private var pendingChipKind: Action.Kind = .suspend
+    @State private var pendingRuleGroup: ApplicationGroup?
+    @State private var toastMessage: String?
+    @State private var toastTask: Task<Void, Never>?
 
     private var isSearching: Bool { !searchText.isEmpty }
 
@@ -38,26 +41,48 @@ struct MenuBarView: View {
         }
         .frame(width: 460)
         .overlay(alignment: .bottom) {
-            if let chipGroup = pendingChipGroup {
-                ConfirmChip(
-                    group: chipGroup,
-                    kind: pendingChipKind,
-                    onConfirm: {
-                        let g = chipGroup, k = pendingChipKind
-                        withAnimation(.easeOut(duration: 0.2)) { pendingChipGroup = nil }
-                        Task {
-                            for p in g.processes { try? await Action(target: p, kind: k).execute() }
-                            selectedGroupID = nil
+            VStack(spacing: 0) {
+                if let msg = toastMessage {
+                    Toast(message: msg)
+                        .transition(.opacity)
+                }
+                if let ruleGroup = pendingRuleGroup {
+                    GroupRuleSheet(
+                        group: ruleGroup,
+                        onSave: { spec in
+                            appState.groupRuleSpecs.append(spec)
+                            withAnimation(.easeOut(duration: 0.2)) { pendingRuleGroup = nil }
+                            showToast("Rule saved")
+                        },
+                        onCancel: {
+                            withAnimation(.easeOut(duration: 0.2)) { pendingRuleGroup = nil }
                         }
-                    },
-                    onCancel: {
-                        withAnimation(.easeOut(duration: 0.2)) { pendingChipGroup = nil }
-                    }
-                )
-                .transition(.move(edge: .bottom).combined(with: .opacity))
+                    )
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
+                if let chipGroup = pendingChipGroup {
+                    ConfirmChip(
+                        group: chipGroup,
+                        kind: pendingChipKind,
+                        onConfirm: {
+                            let g = chipGroup, k = pendingChipKind
+                            withAnimation(.easeOut(duration: 0.2)) { pendingChipGroup = nil }
+                            Task {
+                                for p in g.processes { try? await Action(target: p, kind: k).execute() }
+                                selectedGroupID = nil
+                            }
+                        },
+                        onCancel: {
+                            withAnimation(.easeOut(duration: 0.2)) { pendingChipGroup = nil }
+                        }
+                    )
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
             }
         }
         .animation(.easeOut(duration: 0.2), value: pendingChipGroup?.id)
+        .animation(.easeOut(duration: 0.2), value: pendingRuleGroup?.id)
+        .animation(.easeOut(duration: 0.15), value: toastMessage)
         .onAppear {
             engine.showWindow(id: "menuBar")
             hotkey.tryActivate()
@@ -67,6 +92,9 @@ struct MenuBarView: View {
             searchText = ""
             selectedGroupID = nil
             pendingChipGroup = nil
+            pendingRuleGroup = nil
+            toastTask?.cancel()
+            toastMessage = nil
         }
         .sheet(item: $pendingAction) { action in
             switch action {
@@ -203,6 +231,30 @@ struct MenuBarView: View {
                                 if isSelected { pendingChipGroup = nil }
                             }
                         )
+                        .contextMenu {
+                            let currentGB = Double(group.totalMemory) / 1_073_741_824
+                            let suggestedCap = GroupRuleSheet.suggestedCap(currentGB: currentGB)
+                            Button(group.displayName) {}.disabled(true)
+                            Divider()
+                            Button("Cap at \(String(format: "%.1f", suggestedCap)) GB → lower priority") {
+                                appState.groupRuleSpecs.append(GroupRuleSpec(
+                                    appNamePattern: group.displayName,
+                                    condition: .totalMemoryAboveGB(suggestedCap),
+                                    action: .reniceDown,
+                                    cooldownSeconds: 60,
+                                    isEnabled: true
+                                ))
+                                selectedGroupID = nil
+                                showToast("Rule saved")
+                            }
+                            Button("Custom rule…") {
+                                selectedGroupID = nil
+                                pendingChipGroup = nil
+                                withAnimation(.easeOut(duration: 0.2)) { pendingRuleGroup = group }
+                            }
+                            Divider()
+                            Button("Action…") { selectedGroupID = isSelected ? nil : group.id }
+                        }
                         if isSelected {
                             InlineActionBar(
                                 group: group,
@@ -214,10 +266,14 @@ struct MenuBarView: View {
                                     }
                                 },
                                 onChipAction: { kind in
+                                    pendingRuleGroup = nil
                                     pendingChipGroup = group
                                     pendingChipKind = kind
                                 },
-                                onAddRule: { /* ADR-7 */ }
+                                onAddRule: {
+                                    pendingChipGroup = nil
+                                    withAnimation(.easeOut(duration: 0.2)) { pendingRuleGroup = group }
+                                }
                             )
                         }
                         if expanded {
@@ -243,6 +299,16 @@ struct MenuBarView: View {
         case .memory: return groups.sorted { $0.totalMemory > $1.totalMemory }
         case .cpu:    return groups.sorted { $0.totalCPU > $1.totalCPU }
         case .disk:   return groups.sorted { $0.totalDiskWrite > $1.totalDiskWrite }
+        }
+    }
+
+    private func showToast(_ msg: String) {
+        toastTask?.cancel()
+        withAnimation(.easeOut(duration: 0.15)) { toastMessage = msg }
+        toastTask = Task { @MainActor in
+            try? await Task.sleep(for: .seconds(2))
+            guard !Task.isCancelled else { return }
+            withAnimation(.easeOut(duration: 0.15)) { toastMessage = nil }
         }
     }
 
