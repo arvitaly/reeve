@@ -9,6 +9,7 @@ final class AppState: ObservableObject {
     let overlay: OverlayController
     let iconCache: ProcessIconCache
     let hotkey = GlobalHotkeyMonitor()
+    private let notificationDelegate = NotificationDelegate()
 
     @Published var ruleSpecs: [RuleSpec] = [] {
         didSet {
@@ -38,8 +39,9 @@ final class AppState: ObservableObject {
     // MARK: - Notifications
 
     private func requestNotificationAuthorization() {
-        UNUserNotificationCenter.current()
-            .requestAuthorization(options: [.alert, .sound]) { _, _ in }
+        let center = UNUserNotificationCenter.current()
+        center.delegate = notificationDelegate
+        center.requestAuthorization(options: [.alert, .sound]) { _, _ in }
     }
 
     private func observeActionLog() {
@@ -69,6 +71,7 @@ final class AppState: ObservableObject {
 
     // MARK: - Persistence
 
+
     private func persistSpecs() {
         guard let data = try? JSONEncoder().encode(ruleSpecs) else { return }
         UserDefaults.standard.set(data, forKey: "ruleSpecs")
@@ -80,6 +83,33 @@ final class AppState: ObservableObject {
             let specs = try? JSONDecoder().decode([RuleSpec].self, from: data)
         else { return [] }
         return specs
+    }
+}
+
+// MARK: - Notification delegate
+
+/// Routes UNUserNotificationCenter callbacks. Kept separate from AppState
+/// because UNUserNotificationCenterDelegate requires NSObject inheritance.
+final class NotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
+    // Show banners even while the app's menu bar is open.
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        willPresent notification: UNNotification,
+        withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
+    ) {
+        completionHandler([.banner, .sound])
+    }
+
+    // Open Settings (Log tab) when the user taps a notification.
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        didReceive response: UNNotificationResponse,
+        withCompletionHandler completionHandler: @escaping () -> Void
+    ) {
+        DispatchQueue.main.async {
+            NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+        }
+        completionHandler()
     }
 }
 
