@@ -72,6 +72,9 @@ private struct RulesTab: View {
                 .font(.caption)
                 .foregroundStyle(.tertiary)
                 .multilineTextAlignment(.center)
+            Button("Add your first rule") { isAdding = true }
+                .buttonStyle(.borderedProminent)
+                .padding(.top, 4)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
