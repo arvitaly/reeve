@@ -24,7 +24,7 @@ private struct RulesTab: View {
     @EnvironmentObject var appState: AppState
     @State private var editing: RuleSpec?
     @State private var isAdding = false
-
+    @State private var pendingDelete: RuleSpec?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -45,6 +45,19 @@ private struct RulesTab: View {
                 else { return }
                 appState.ruleSpecs[i] = updated
             }
+        }
+        .confirmationDialog(
+            "Delete \"\(pendingDelete?.name ?? "")\"?",
+            isPresented: Binding(get: { pendingDelete != nil }, set: { if !$0 { pendingDelete = nil } }),
+            titleVisibility: .visible
+        ) {
+            Button("Delete", role: .destructive) {
+                if let spec = pendingDelete {
+                    appState.ruleSpecs.removeAll { $0.id == spec.id }
+                }
+                pendingDelete = nil
+            }
+            Button("Cancel", role: .cancel) { pendingDelete = nil }
         }
     }
 
@@ -67,7 +80,7 @@ private struct RulesTab: View {
         List {
             ForEach($appState.ruleSpecs) { $spec in
                 RuleSpecRow(spec: $spec, onEdit: { editing = spec }, onDelete: {
-                    appState.ruleSpecs.removeAll { $0.id == spec.id }
+                    pendingDelete = spec
                 })
             }
             .onMove { appState.ruleSpecs.move(fromOffsets: $0, toOffset: $1) }
