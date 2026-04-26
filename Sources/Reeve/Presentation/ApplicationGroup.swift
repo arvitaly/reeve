@@ -106,14 +106,11 @@ func memCap(for group: ApplicationGroup, in specs: [GroupRuleSpec]) -> UInt64? {
 // MARK: - Shared sheet item type
 
 enum AppAction: Identifiable {
-    case group(ApplicationGroup)
     case process(ProcessRecord)
 
     var id: String {
-        switch self {
-        case .group(let g):   return "g-\(g.id)"
-        case .process(let p): return "p-\(p.id)"
-        }
+        if case .process(let p) = self { return "p-\(p.id)" }
+        return ""
     }
 }
 

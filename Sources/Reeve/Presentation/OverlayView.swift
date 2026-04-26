@@ -115,10 +115,7 @@ struct OverlayView: View {
             showToast("Rule: \(entry.actionName) → \(entry.appName)")
         }
         .sheet(item: $pendingAction) { action in
-            switch action {
-            case .process(let p): ActionSheet(process: p)
-            case .group: EmptyView()
-            }
+            if case .process(let p) = action { ActionSheet(process: p) }
         }
     }
 
