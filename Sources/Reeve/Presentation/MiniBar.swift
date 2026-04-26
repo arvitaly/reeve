@@ -35,12 +35,12 @@ struct MiniBar: View {
                     with: .color(severity.barColor)
                 )
             }
-            // Over-cap stub: 2 px white tick at right edge
+            // Over-cap stub: 2 px danger cap at right edge (design spec: danger color + glow)
             if isOver {
                 ctx.fill(
                     Path(roundedRect: CGRect(x: size.width - 2, y: 0, width: 2, height: size.height),
                          cornerRadius: 1),
-                    with: .color(.white.opacity(0.7))
+                    with: .color(.rvDanger)
                 )
             }
         }

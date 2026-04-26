@@ -12,7 +12,11 @@ struct InlineActionBar: View {
     var body: some View {
         HStack(spacing: 8) {
             HoldToKillButton(onFired: onKill)
-            chipButton("Suspend", kind: .suspend)
+            if group.isSuspended {
+                chipButton("Resume", kind: .resume)
+            } else {
+                chipButton("Suspend", kind: .suspend)
+            }
             chipButton("Lower Priority", kind: .renice(10))
             Spacer()
             Button(action: onAddRule) {
@@ -141,6 +145,7 @@ struct ConfirmChip: View {
     private var chipTitle: String {
         switch kind {
         case .suspend:   return "Suspend \(group.displayName)?"
+        case .resume:    return "Resume \(group.displayName)?"
         case .renice:    return "Lower Priority of \(group.displayName)?"
         default:         return group.displayName
         }
@@ -152,6 +157,8 @@ struct ConfirmChip: View {
         switch kind {
         case .suspend:
             return "Pauses \(n) process\(s) — memory remains reserved. Resume to restore."
+        case .resume:
+            return "Resumes \(n) paused process\(s)."
         case .renice(let v):
             return "Lowers scheduling priority (nice +\(v)) for \(n) process\(s). Reversible."
         default:
@@ -162,6 +169,7 @@ struct ConfirmChip: View {
     private var confirmLabel: String {
         switch kind {
         case .suspend: return "Suspend All"
+        case .resume:  return "Resume All"
         case .renice:  return "Lower Priority"
         default:       return "Proceed"
         }
