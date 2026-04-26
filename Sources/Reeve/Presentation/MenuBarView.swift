@@ -30,7 +30,10 @@ struct MenuBarView: View {
             engine.showWindow(id: "menuBar")
             hotkey.tryActivate()
         }
-        .onDisappear { engine.hideWindow(id: "menuBar") }
+        .onDisappear {
+            engine.hideWindow(id: "menuBar")
+            searchText = ""
+        }
         .sheet(item: $selectedProcess) { process in
             ActionSheet(process: process)
         }
