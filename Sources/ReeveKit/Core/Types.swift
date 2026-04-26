@@ -18,6 +18,10 @@ public struct ProcessRecord: Identifiable, Sendable, Hashable {
     public let diskReadRate: UInt64
     /// Disk bytes written per second since the previous sample. Same caveats as diskReadRate.
     public let diskWriteRate: UInt64
+    /// True when pbsi_status == SSTOP (4) — process is suspended via SIGSTOP.
+    public let isSuspended: Bool
+    /// UNIX nice value from getpriority(PRIO_PROCESS). 0 = normal, positive = lower priority.
+    public let niceValue: Int32
 
     public var id: pid_t { pid }
 
@@ -25,11 +29,13 @@ public struct ProcessRecord: Identifiable, Sendable, Hashable {
     // No special handling — if Reeve ranks high, it ranks high.
     public init(
         pid: pid_t, name: String, residentMemory: UInt64, cpuPercent: Double,
-        parentPID: pid_t = 0, diskReadRate: UInt64 = 0, diskWriteRate: UInt64 = 0
+        parentPID: pid_t = 0, diskReadRate: UInt64 = 0, diskWriteRate: UInt64 = 0,
+        isSuspended: Bool = false, niceValue: Int32 = 0
     ) {
         self.pid = pid; self.name = name; self.residentMemory = residentMemory
         self.cpuPercent = cpuPercent; self.parentPID = parentPID
         self.diskReadRate = diskReadRate; self.diskWriteRate = diskWriteRate
+        self.isSuspended = isSuspended; self.niceValue = niceValue
     }
 
     public static let reevePID: pid_t = getpid()

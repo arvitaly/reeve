@@ -362,6 +362,10 @@ struct OverlayView: View {
             Divider()
             Button(isPinned ? "Unpin from Widget" : "Pin to Widget") { togglePin(group.displayName) }
             Button("Action…") { selectedGroupID = isSelected ? nil : group.id }
+            Button("Open in Activity Monitor") {
+                NSWorkspace.shared.open(
+                    URL(fileURLWithPath: "/System/Applications/Utilities/Activity Monitor.app"))
+            }
         }
         if isSelected {
             InlineActionBar(

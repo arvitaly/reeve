@@ -14,6 +14,8 @@ struct ApplicationGroup: Identifiable {
     var totalCPU: Double { processes.reduce(0) { $0 + $1.cpuPercent } }
     var totalDiskWrite: UInt64 { processes.reduce(0) { $0 + $1.diskWriteRate } }
     var isReeve: Bool { processes.contains { $0.isReeve } }
+    var isSuspended: Bool { !processes.isEmpty && processes.allSatisfy { $0.isSuspended } }
+    var maxNiceValue: Int32 { processes.map { $0.niceValue }.max() ?? 0 }
 
     var formattedMemory: String {
         ByteCountFormatter.string(fromByteCount: Int64(totalMemory), countStyle: .memory)
@@ -141,13 +143,22 @@ struct ApplicationGroupRow: View {
             .buttonStyle(.plain)
             if let icon = group.icon {
                 Image(nsImage: icon).resizable().interpolation(.high).frame(width: 20, height: 20)
+                    .opacity(group.isSuspended ? 0.4 : 1.0)
             } else {
                 Color.clear.frame(width: 20, height: 20)
             }
-            Text(group.displayName)
-                .lineLimit(1)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .foregroundStyle(group.isReeve ? Color.accentColor : .primary)
+            HStack(spacing: 4) {
+                Text(group.displayName)
+                    .lineLimit(1)
+                    .foregroundStyle(group.isReeve ? Color.accentColor : .primary)
+                if group.isSuspended {
+                    statusBadge("paused", color: .secondary)
+                } else if group.maxNiceValue > 0 {
+                    statusBadge("nice +\(group.maxNiceValue)", color: Color.rvAccent)
+                }
+                Spacer(minLength: 0)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
             Text(group.processes.count > 1 ? "\(group.processes.count)" : "")
                 .font(.caption2)
                 .foregroundStyle(Color.rvTextFaint)
@@ -185,6 +196,16 @@ struct ApplicationGroupRow: View {
         if isSelected { return Color.rvRowSelected }
         if isHovered { return Color.primary.opacity(0.06) }
         return .clear
+    }
+
+    private func statusBadge(_ text: String, color: Color) -> some View {
+        Text(text)
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(color)
+            .padding(.horizontal, 4)
+            .padding(.vertical, 1)
+            .background(color.opacity(0.12))
+            .clipShape(RoundedRectangle(cornerRadius: 3))
     }
 }
 

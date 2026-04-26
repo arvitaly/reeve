@@ -82,15 +82,24 @@ public actor ProcessSampler {
             proc_name(pid, &nameBuffer, UInt32(nameBuffer.count))
             let name = String(cString: nameBuffer)
 
-            // PROC_PIDT_SHORTBSDINFO (sys/proc_info.h §13) exposes pbsi_ppid.
+            // PROC_PIDT_SHORTBSDINFO (sys/proc_info.h §13) exposes pbsi_ppid and pbsi_status.
+            // pbsi_status == 4 (SSTOP) means the process is suspended via SIGSTOP.
             var bsdInfo = proc_bsdshortinfo()
             let bsdSize = Int32(MemoryLayout<proc_bsdshortinfo>.size)
             let parentPID: pid_t
+            let isSuspended: Bool
             if proc_pidinfo(pid, PROC_PIDT_SHORTBSDINFO, 0, &bsdInfo, bsdSize) == bsdSize {
                 parentPID = pid_t(bsdInfo.pbsi_ppid)
+                isSuspended = bsdInfo.pbsi_status == 4   // SSTOP
             } else {
                 parentPID = 0
+                isSuspended = false
             }
+
+            // UNIX nice value via getpriority(PRIO_PROCESS). Documented in getpriority(2).
+            Darwin.errno = 0
+            let rawNice = getpriority(PRIO_PROCESS, UInt32(pid))
+            let niceValue: Int32 = Darwin.errno == 0 ? rawNice : 0
 
             return ProcessRecord(
                 pid: pid,
@@ -99,7 +108,9 @@ public actor ProcessSampler {
                 cpuPercent: cpuPercent,
                 parentPID: parentPID,
                 diskReadRate: diskReadRate,
-                diskWriteRate: diskWriteRate
+                diskWriteRate: diskWriteRate,
+                isSuspended: isSuspended,
+                niceValue: niceValue
             )
         }
 
