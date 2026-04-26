@@ -123,8 +123,8 @@ final class ActionTests: XCTestCase {
 
     // MARK: preflight — resume
 
-    func testResumeIsIrreversible() {
-        XCTAssertFalse(Action(target: record(), kind: .resume).preflight().isReversible)
+    func testResumeIsReversible() {
+        XCTAssertTrue(Action(target: record(), kind: .resume).preflight().isReversible)
     }
 
     func testResumeEffectIsKnown() {

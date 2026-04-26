@@ -120,7 +120,7 @@ final class GroupRuleEngine: ObservableObject {
         let (groups, _) = buildApplicationGroups(snapshot: snapshot)
         updateHistory(groups: groups, snapshot: snapshot)
         let now = ContinuousClock.now
-        for spec in specs where spec.isEnabled {
+        for spec in specs where spec.isEnabled && !spec.appNamePattern.trimmingCharacters(in: .whitespaces).isEmpty {
             for group in groups {
                 guard group.displayName.localizedCaseInsensitiveContains(spec.appNamePattern) else { continue }
                 guard spec.condition.matches(group) else { continue }
