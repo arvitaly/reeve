@@ -68,6 +68,20 @@ final class ActionTests: XCTestCase {
         XCTAssertTrue(Action.Kind.renice(10).shortName.lowercased().contains("lower"))
     }
 
+    // MARK: Kind.helpText
+
+    func testHelpTextIsNonEmptyForAllKinds() {
+        let kinds: [Action.Kind] = [.terminate, .kill, .renice(10), .renice(-1), .suspend, .resume]
+        for kind in kinds {
+            XCTAssertFalse(kind.helpText.isEmpty, "\(kind) has empty helpText")
+        }
+    }
+
+    func testHelpTextReniceSign() {
+        XCTAssertTrue(Action.Kind.renice(-1).helpText.lowercased().contains("raise"))
+        XCTAssertTrue(Action.Kind.renice(10).helpText.lowercased().contains("lower"))
+    }
+
     // MARK: preflight — renice
 
     func testReniceIsReversible() {
