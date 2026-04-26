@@ -2,10 +2,11 @@ import AppKit
 import SwiftUI
 import ReeveKit
 
-/// Manages the floating always-on-top NSPanel and its SwiftUI content.
+/// Manages the desktop-level overlay widget.
 ///
-/// The panel is hidden on first launch (overlays imposed unsolicited are hostile).
-/// Position is persisted automatically via autosave name — Cocoa writes to UserDefaults.
+/// The panel sits at `desktopIconWindow` level — below all application windows, above
+/// the wallpaper. It is visible on the desktop but never covers active work.
+/// Position is persisted via autosave name in UserDefaults.
 @MainActor
 final class OverlayController: NSObject, ObservableObject, NSWindowDelegate {
     @Published private(set) var isVisible = false
@@ -47,23 +48,32 @@ final class OverlayController: NSObject, ObservableObject, NSWindowDelegate {
 
     private func makePanel() -> NSPanel {
         let p = NSPanel(
-            contentRect: NSRect(x: 0, y: 0, width: 240, height: 200),
+            contentRect: NSRect(x: 0, y: 0, width: 300, height: 340),
             styleMask: [.nonactivatingPanel, .fullSizeContentView, .titled, .closable],
             backing: .buffered,
             defer: false
         )
-        p.level = .floating
-        p.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+        // Desktop level: below all app windows, above wallpaper
+        p.level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.desktopIconWindow)) + 1)
+        p.collectionBehavior = [.stationary, .canJoinAllSpaces, .ignoresCycle, .fullScreenAuxiliary]
         p.isMovableByWindowBackground = true
         p.titlebarAppearsTransparent = true
         p.titleVisibility = .hidden
         p.backgroundColor = .clear
         p.isOpaque = false
         p.hasShadow = true
+        p.isReleasedWhenClosed = false
         p.setFrameAutosaveName("ReeveOverlay")
 
         if p.frame.origin == .zero {
-            p.center()
+            // Default position: bottom-right of main screen
+            if let screen = NSScreen.main {
+                let x = screen.visibleFrame.maxX - 320
+                let y = screen.visibleFrame.minY + 60
+                p.setFrameOrigin(NSPoint(x: x, y: y))
+            } else {
+                p.center()
+            }
         }
 
         guard let engine else { return p }

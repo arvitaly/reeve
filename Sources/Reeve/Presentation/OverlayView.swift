@@ -1,19 +1,16 @@
 import SwiftUI
 import ReeveKit
 
-/// The floating overlay content: top-5-by-CPU list with inline preflight on tap.
+/// Passive desktop widget: top processes by CPU, no action capability.
+///
+/// Intended to sit at desktop level beneath all app windows. Actions are available
+/// via the main Reeve window or the menu bar popover.
 struct OverlayView: View {
     @ObservedObject var engine: MonitoringEngine
     let onClose: () -> Void
 
-    @State private var expanded: ProcessRecord?
-    @State private var pendingAction: Action?
-    @State private var preflight: PreflightResult?
-    @State private var isExecuting = false
-    @State private var errorMessage: String?
-
     private var topProcesses: [ProcessRecord] {
-        Array(engine.snapshot.topByCPU.prefix(5))
+        Array(engine.snapshot.topByCPU.prefix(8))
     }
 
     var body: some View {
@@ -27,22 +24,13 @@ struct OverlayView: View {
                     .padding(12)
             } else {
                 ForEach(topProcesses) { process in
-                    OverlayRow(
-                        process: process,
-                        isExpanded: expanded?.pid == process.pid,
-                        pendingAction: expanded?.pid == process.pid ? pendingAction : nil,
-                        preflight: expanded?.pid == process.pid ? preflight : nil,
-                        isExecuting: expanded?.pid == process.pid && isExecuting,
-                        errorMessage: expanded?.pid == process.pid ? errorMessage : nil,
-                        onTap: { rowTapped(process) },
-                        onPickKind: { pickAction(process, kind: $0) },
-                        onConfirm: { confirmAction() },
-                        onBack: { collapse() }
-                    )
+                    OverlayRow(process: process)
                 }
             }
+            Divider()
+            timestampBar
         }
-        .frame(width: 240)
+        .frame(width: 300)
         .background(.regularMaterial)
         .clipShape(RoundedRectangle(cornerRadius: 10))
     }
@@ -65,47 +53,18 @@ struct OverlayView: View {
         .padding(.vertical, 6)
     }
 
-    private func rowTapped(_ process: ProcessRecord) {
-        if expanded?.pid == process.pid {
-            collapse()
-        } else {
-            collapse()
-            expanded = process
+    private var timestampBar: some View {
+        HStack {
+            Text("CPU · top 8")
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+            Spacer()
+            Text(engine.snapshot.sampledAt, style: .time)
+                .font(.caption2.monospacedDigit())
+                .foregroundStyle(.tertiary)
         }
-    }
-
-    private func pickAction(_ process: ProcessRecord, kind: Action.Kind) {
-        let action = Action(target: process, kind: kind)
-        pendingAction = action
-        preflight = action.preflight()
-        errorMessage = nil
-    }
-
-    private func confirmAction() {
-        guard let action = pendingAction else { return }
-        isExecuting = true
-        errorMessage = nil
-        Task {
-            do {
-                try await action.execute()
-                collapse()
-            } catch ActionError.processGone {
-                errorMessage = "Process gone"
-            } catch ActionError.permissionDenied {
-                errorMessage = "Permission denied"
-            } catch {
-                errorMessage = error.localizedDescription
-            }
-            isExecuting = false
-        }
-    }
-
-    private func collapse() {
-        expanded = nil
-        pendingAction = nil
-        preflight = nil
-        errorMessage = nil
-        isExecuting = false
+        .padding(.horizontal, 10)
+        .padding(.vertical, 5)
     }
 }
 
@@ -113,85 +72,43 @@ struct OverlayView: View {
 
 private struct OverlayRow: View {
     let process: ProcessRecord
-    let isExpanded: Bool
-    let pendingAction: Action?
-    let preflight: PreflightResult?
-    let isExecuting: Bool
-    let errorMessage: String?
-    let onTap: () -> Void
-    let onPickKind: (Action.Kind) -> Void
-    let onConfirm: () -> Void
-    let onBack: () -> Void
     @Environment(\.iconCache) private var iconCache
-    @State private var isHovered = false
 
     var body: some View {
-        VStack(spacing: 0) {
-            Button(action: onTap) {
-                HStack(spacing: 6) {
-                    processIcon
-                    Text(process.name)
-                        .lineLimit(1)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    Text(process.formattedCPU)
-                        .font(.caption.monospacedDigit())
-                        .foregroundStyle(.secondary)
-                        .frame(width: 44, alignment: .trailing)
-                    Text(process.formattedMemory)
-                        .font(.caption.monospacedDigit())
-                        .foregroundStyle(.secondary)
-                        .frame(width: 56, alignment: .trailing)
-                }
-                .padding(.horizontal, 10)
-                .padding(.vertical, 5)
-                .background(overlayRowBackground)
-            }
-            .buttonStyle(.plain)
-            .font(.caption)
-            .onHover { isHovered = $0 }
-
-            if isExpanded {
-                expansionPanel
-                    .padding(.horizontal, 10)
-                    .padding(.bottom, 8)
-            }
+        HStack(spacing: 6) {
+            processIcon
+            Text(process.name)
+                .lineLimit(1)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .foregroundStyle(process.isReeve ? Color.accentColor : .primary)
+            diskBadge
+            Text(process.formattedMemory)
+                .font(.caption.monospacedDigit())
+                .foregroundStyle(.secondary)
+                .frame(width: 56, alignment: .trailing)
+            Text(process.formattedCPU)
+                .font(.caption.monospacedDigit())
+                .foregroundStyle(cpuColor)
+                .frame(width: 40, alignment: .trailing)
         }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 5)
+        .font(.caption)
     }
 
     @ViewBuilder
-    private var expansionPanel: some View {
-        if let preflight {
-            preflightPanel(preflight)
-        } else {
-            actionPicker
+    private var diskBadge: some View {
+        if let w = process.formattedDiskWrite {
+            Text(w)
+                .font(.caption2.monospacedDigit())
+                .foregroundStyle(.orange)
+                .lineLimit(1)
+        } else if let r = process.formattedDiskRead {
+            Text(r)
+                .font(.caption2.monospacedDigit())
+                .foregroundStyle(.blue)
+                .lineLimit(1)
         }
-    }
-
-    private var actionPicker: some View {
-        VStack(spacing: 4) {
-            HStack(spacing: 4) {
-                kindButton("Kill", kind: .kill)
-                kindButton("Terminate", kind: .terminate)
-            }
-            HStack(spacing: 4) {
-                kindButton("Suspend", kind: .suspend)
-                kindButton("Resume", kind: .resume)
-            }
-            HStack(spacing: 4) {
-                kindButton("Lower Priority", kind: .renice(10))
-            }
-            Button("Cancel", action: onBack)
-                .buttonStyle(.plain)
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-                .padding(.top, 2)
-        }
-    }
-
-    private var overlayRowBackground: Color {
-        if isHovered && !isExpanded { return Color.primary.opacity(0.06) }
-        if process.isReeve { return Color.accentColor.opacity(0.08) }
-        return .clear
     }
 
     @ViewBuilder
@@ -206,50 +123,9 @@ private struct OverlayRow: View {
         }
     }
 
-    private func kindButton(_ label: String, kind: Action.Kind) -> some View {
-        Button(label) { onPickKind(kind) }
-            .buttonStyle(.bordered)
-            .font(.caption2)
-            .frame(maxWidth: .infinity)
-            .controlSize(.mini)
-            .help(kind.helpText)
-    }
-
-    private func preflightPanel(_ result: PreflightResult) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(result.description)
-                .font(.caption2)
-                .fixedSize(horizontal: false, vertical: true)
-                .foregroundStyle(.secondary)
-
-            if !result.warnings.isEmpty {
-                ForEach(result.warnings, id: \.self) { w in
-                    Label(w, systemImage: "exclamationmark.triangle")
-                        .font(.caption2)
-                        .foregroundStyle(.orange)
-                }
-            }
-
-            if let msg = errorMessage {
-                Text(msg).font(.caption2).foregroundStyle(.red)
-            }
-
-            HStack(spacing: 6) {
-                Button("Back", action: onBack)
-                    .buttonStyle(.plain)
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                    .disabled(isExecuting)
-                Spacer()
-                Button(result.isReversible ? "Proceed" : "Proceed — no undo") {
-                    onConfirm()
-                }
-                .buttonStyle(.borderedProminent)
-                .tint(result.isReversible ? .accentColor : .red)
-                .font(.caption2)
-                .controlSize(.mini)
-                .disabled(isExecuting)
-            }
-        }
+    private var cpuColor: Color {
+        if process.cpuPercent > 80 { return .red }
+        if process.cpuPercent > 40 { return .orange }
+        return .secondary
     }
 }

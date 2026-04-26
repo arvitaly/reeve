@@ -11,6 +11,9 @@ struct MenuBarView: View {
     @ObservedObject var engine: MonitoringEngine
     @ObservedObject var overlay: OverlayController
     @ObservedObject var hotkey: GlobalHotkeyMonitor
+    @EnvironmentObject var appState: AppState
+    let mainWindow: MainWindowController
+
     @State private var selectedProcess: ProcessRecord?
     @State private var sortMode: SortMode = .memory
     @State private var searchText: String = ""
@@ -30,7 +33,7 @@ struct MenuBarView: View {
             Divider()
             footer
         }
-        .frame(width: 300)
+        .frame(width: 460)
         .onAppear {
             engine.showWindow(id: "menuBar")
             hotkey.tryActivate()
@@ -44,12 +47,20 @@ struct MenuBarView: View {
         }
     }
 
+    // MARK: Header
+
     private var header: some View {
         VStack(spacing: 6) {
             HStack {
                 Text("Reeve")
                     .font(.headline)
                 Spacer()
+                Button("Open Reeve") {
+                    mainWindow.show(appState: appState)
+                }
+                .buttonStyle(.plain)
+                .font(.caption)
+                .foregroundStyle(Color.accentColor)
                 Text(engine.snapshot.sampledAt, style: .time)
                     .font(.caption.monospacedDigit())
                     .foregroundStyle(.secondary)
@@ -63,9 +74,14 @@ struct MenuBarView: View {
         .padding(.bottom, 6)
     }
 
+    // MARK: Flat list
+
+    private static let flatLimit = 15
+    private static let searchLimit = 25
+
     private var processList: some View {
         VStack(spacing: 0) {
-            let list = isSearching ? filteredProcesses : Array(sortedProcesses.prefix(8))
+            let list = isSearching ? filteredProcesses : Array(sortedProcesses.prefix(Self.flatLimit))
             if list.isEmpty {
                 Text("No matches")
                     .font(.caption)
@@ -74,15 +90,15 @@ struct MenuBarView: View {
                     .padding(.vertical, 12)
             } else {
                 ForEach(list) { process in
-                    ProcessRow(process: process) {
-                        selectedProcess = process
-                    }
+                    ProcessRow(process: process) { selectedProcess = process }
                 }
             }
         }
     }
 
-    private static let treeDisplayLimit = 18
+    // MARK: Tree list
+
+    private static let treeDisplayLimit = 30
 
     private var treeList: some View {
         VStack(spacing: 0) {
@@ -97,15 +113,13 @@ struct MenuBarView: View {
                     .padding(.vertical, 12)
             } else {
                 ForEach(Array(rows), id: \.id) { node in
-                    TreeProcessRow(node: node) {
-                        selectedProcess = node.record
-                    }
+                    TreeProcessRow(node: node) { selectedProcess = node.record }
                 }
             }
         }
     }
 
-    private static let searchLimit = 20
+    // MARK: Computed data
 
     private var filteredProcesses: [ProcessRecord] {
         Array(engine.snapshot.processes
@@ -133,6 +147,8 @@ struct MenuBarView: View {
         return "\(engine.snapshot.processes.count)"
     }
 
+    // MARK: Footer
+
     private var footer: some View {
         HStack(spacing: 8) {
             Text(processCountLabel)
@@ -158,7 +174,7 @@ struct MenuBarView: View {
             .help(treeMode ? "Switch to flat list" : "Switch to process tree")
             Spacer()
             HStack(spacing: 3) {
-                Button(overlay.isVisible ? "Hide Overlay" : "Overlay") {
+                Button(overlay.isVisible ? "Hide Widget" : "Widget") {
                     overlay.toggle()
                 }
                 .buttonStyle(.plain)
@@ -184,6 +200,8 @@ struct MenuBarView: View {
     }
 }
 
+// MARK: - Tree row
+
 struct TreeProcessRow: View {
     let node: ProcessTreeNode
     let onTap: () -> Void
@@ -192,7 +210,6 @@ struct TreeProcessRow: View {
 
     private static let maxIndentDepth = 4
     private var indent: CGFloat { CGFloat(min(node.depth, Self.maxIndentDepth)) * 10 }
-    private var isLeaf: Bool { node.children.isEmpty }
 
     var body: some View {
         Button(action: onTap) {
@@ -210,6 +227,7 @@ struct TreeProcessRow: View {
                         .lineLimit(1)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .foregroundStyle(node.depth == 0 ? .primary : .secondary)
+                    diskIndicators
                     Text(node.record.formattedMemory)
                         .font(.caption.monospacedDigit())
                         .foregroundStyle(.secondary)
@@ -217,7 +235,7 @@ struct TreeProcessRow: View {
                     Text(node.record.formattedCPU)
                         .font(.caption.monospacedDigit())
                         .foregroundStyle(.secondary)
-                        .frame(width: 48, alignment: .trailing)
+                        .frame(width: 44, alignment: .trailing)
                 }
             }
             .padding(.leading, node.depth == 0 ? 12 : 4)
@@ -227,6 +245,21 @@ struct TreeProcessRow: View {
         }
         .buttonStyle(.plain)
         .onHover { isHovered = $0 }
+    }
+
+    @ViewBuilder
+    private var diskIndicators: some View {
+        if let w = node.record.formattedDiskWrite {
+            Text(w)
+                .font(.caption2.monospacedDigit())
+                .foregroundStyle(.orange)
+                .lineLimit(1)
+        } else if let r = node.record.formattedDiskRead {
+            Text(r)
+                .font(.caption2.monospacedDigit())
+                .foregroundStyle(.blue)
+                .lineLimit(1)
+        }
     }
 
     private var rowBackground: Color {
@@ -249,6 +282,8 @@ struct TreeProcessRow: View {
     }
 }
 
+// MARK: - Flat row
+
 struct ProcessRow: View {
     let process: ProcessRecord
     let onTap: () -> Void
@@ -262,6 +297,7 @@ struct ProcessRow: View {
                 Text(process.name)
                     .lineLimit(1)
                     .frame(maxWidth: .infinity, alignment: .leading)
+                diskIndicators
                 Text(process.formattedMemory)
                     .font(.caption.monospacedDigit())
                     .foregroundStyle(.secondary)
@@ -269,7 +305,7 @@ struct ProcessRow: View {
                 Text(process.formattedCPU)
                     .font(.caption.monospacedDigit())
                     .foregroundStyle(.secondary)
-                    .frame(width: 48, alignment: .trailing)
+                    .frame(width: 44, alignment: .trailing)
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 5)
@@ -277,6 +313,21 @@ struct ProcessRow: View {
         }
         .buttonStyle(.plain)
         .onHover { isHovered = $0 }
+    }
+
+    @ViewBuilder
+    private var diskIndicators: some View {
+        if let w = process.formattedDiskWrite {
+            Text(w)
+                .font(.caption2.monospacedDigit())
+                .foregroundStyle(.orange)
+                .lineLimit(1)
+        } else if let r = process.formattedDiskRead {
+            Text(r)
+                .font(.caption2.monospacedDigit())
+                .foregroundStyle(.blue)
+                .lineLimit(1)
+        }
     }
 
     private var rowBackground: Color {

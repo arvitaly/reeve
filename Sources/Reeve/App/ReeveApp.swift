@@ -9,6 +9,7 @@ final class AppState: ObservableObject {
     let overlay: OverlayController
     let iconCache: ProcessIconCache
     let hotkey = GlobalHotkeyMonitor()
+    let mainWindow = MainWindowController()
     private let notificationDelegate = NotificationDelegate()
 
     @Published var ruleSpecs: [RuleSpec] = [] {
@@ -119,7 +120,9 @@ struct ReeveApp: App {
 
     var body: some Scene {
         MenuBarExtra {
-            MenuBarView(engine: state.engine, overlay: state.overlay, hotkey: state.hotkey)
+            MenuBarView(engine: state.engine, overlay: state.overlay, hotkey: state.hotkey,
+                        mainWindow: state.mainWindow)
+                .environmentObject(state)
                 .environment(\.iconCache, state.iconCache)
         } label: {
             MenuBarLabel(engine: state.engine)

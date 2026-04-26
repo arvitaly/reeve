@@ -13,14 +13,16 @@ struct RulesSettingsView: View {
                 .tabItem { Label("Rules", systemImage: "slider.horizontal.3") }
             LogTab(engine: appState.engine)
                 .tabItem { Label("Log", systemImage: "list.bullet.rectangle") }
+            GeneralTab()
+                .tabItem { Label("General", systemImage: "gearshape") }
         }
-        .frame(width: 520, height: 380)
+        .frame(width: 720, height: 520)
     }
 }
 
 // MARK: - Rules tab
 
-private struct RulesTab: View {
+struct RulesTab: View {
     @EnvironmentObject var appState: AppState
     @State private var editing: RuleSpec?
     @State private var isAdding = false
@@ -109,7 +111,7 @@ private struct RulesTab: View {
 
 // MARK: - Log tab
 
-private struct LogTab: View {
+struct LogTab: View {
     @ObservedObject var engine: MonitoringEngine
 
     private var sortedLog: [ActionLogEntry] {
