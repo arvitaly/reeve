@@ -29,11 +29,11 @@ struct OverlayView: View {
                 ForEach(topProcesses) { process in
                     OverlayRow(
                         process: process,
-                        isExpanded: expanded == process,
-                        pendingAction: expanded == process ? pendingAction : nil,
-                        preflight: expanded == process ? preflight : nil,
-                        isExecuting: expanded == process && isExecuting,
-                        errorMessage: expanded == process ? errorMessage : nil,
+                        isExpanded: expanded?.pid == process.pid,
+                        pendingAction: expanded?.pid == process.pid ? pendingAction : nil,
+                        preflight: expanded?.pid == process.pid ? preflight : nil,
+                        isExecuting: expanded?.pid == process.pid && isExecuting,
+                        errorMessage: expanded?.pid == process.pid ? errorMessage : nil,
                         onTap: { rowTapped(process) },
                         onPickKind: { pickAction(process, kind: $0) },
                         onConfirm: { confirmAction() },
@@ -66,7 +66,7 @@ struct OverlayView: View {
     }
 
     private func rowTapped(_ process: ProcessRecord) {
-        if expanded == process {
+        if expanded?.pid == process.pid {
             collapse()
         } else {
             collapse()
