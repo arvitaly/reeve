@@ -361,7 +361,12 @@ struct OverlayView: View {
             Button(group.displayName) {}.disabled(true)
             Divider()
             Button("Unpin from Widget") { togglePin(group.displayName) }
-            Button("Action…") { selectedGroupID = group.id }
+            Button("Action…") {
+                widgetMode = .expanded
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                    selectedGroupID = group.id
+                }
+            }
             Button("Open in Activity Monitor") {
                 NSWorkspace.shared.open(
                     URL(fileURLWithPath: "/System/Applications/Utilities/Activity Monitor.app"))
@@ -501,7 +506,8 @@ struct OverlayView: View {
     private func groupBlock(group: ApplicationGroup) -> some View {
         let cap = memCap(for: group, in: appState.groupRuleSpecs)
         let isSelected = selectedGroupID == group.id
-        let isExpanded = expandedGroupIDs.contains(group.id)
+        let canExpand = widgetMode == .expanded
+        let isExpanded = canExpand && expandedGroupIDs.contains(group.id)
         let isPinned = pinnedGroupIDs.contains(group.displayName)
         ApplicationGroupRow(
             group: group,
@@ -509,6 +515,7 @@ struct OverlayView: View {
             isSelected: isSelected,
             isExpanded: isExpanded,
             onToggle: {
+                guard canExpand else { return }
                 if expandedGroupIDs.contains(group.id) { expandedGroupIDs.remove(group.id) }
                 else { expandedGroupIDs.insert(group.id) }
             },
