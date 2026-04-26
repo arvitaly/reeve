@@ -99,7 +99,7 @@ struct ProcessesTab: View {
             TableColumn("Name", value: \.name) { proc in
                 HStack(spacing: 6) {
                     procIcon(proc, size: 16)
-                    Text(proc.name)
+                    Text(iconCache.displayName(for: proc))
                         .lineLimit(1)
                         .foregroundStyle(proc.isReeve ? Color.accentColor : .primary)
                 }
@@ -179,7 +179,7 @@ struct ProcessesTab: View {
                 }
                 HStack(spacing: 6) {
                     procIcon(node.record, size: node.depth == 0 ? 16 : 13)
-                    Text(node.record.name)
+                    Text(iconCache.displayName(for: node.record))
                         .lineLimit(1)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .foregroundStyle(node.depth == 0 ? .primary : .secondary)

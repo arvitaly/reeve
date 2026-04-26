@@ -48,11 +48,12 @@ final class OverlayController: NSObject, ObservableObject, NSWindowDelegate {
 
     private func makePanel() -> NSPanel {
         let p = NSPanel(
-            contentRect: NSRect(x: 0, y: 0, width: 300, height: 340),
-            styleMask: [.nonactivatingPanel, .fullSizeContentView, .titled, .closable],
+            contentRect: NSRect(x: 0, y: 0, width: 380, height: 700),
+            styleMask: [.nonactivatingPanel, .fullSizeContentView, .titled, .closable, .resizable],
             backing: .buffered,
             defer: false
         )
+        p.minSize = NSSize(width: 280, height: 200)
         // Desktop level: below all app windows, above wallpaper
         p.level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.desktopIconWindow)) + 1)
         p.collectionBehavior = [.stationary, .canJoinAllSpaces, .ignoresCycle, .fullScreenAuxiliary]
@@ -66,10 +67,11 @@ final class OverlayController: NSObject, ObservableObject, NSWindowDelegate {
         p.setFrameAutosaveName("ReeveOverlay")
 
         if p.frame.origin == .zero {
-            // Default position: bottom-right of main screen
+            // Default position: top-right of main screen, below menu bar
             if let screen = NSScreen.main {
-                let x = screen.visibleFrame.maxX - 320
-                let y = screen.visibleFrame.minY + 60
+                let margin: CGFloat = 16
+                let x = screen.visibleFrame.maxX - p.frame.width - margin
+                let y = screen.visibleFrame.maxY - p.frame.height - margin
                 p.setFrameOrigin(NSPoint(x: x, y: y))
             } else {
                 p.center()

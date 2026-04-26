@@ -35,6 +35,10 @@ final class AppState: ObservableObject {
         requestNotificationAuthorization()
         observeActionLog()
         hotkey.register { [weak overlay] in overlay?.toggle() }
+        // Show overlay widget automatically on launch
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            overlay.show()
+        }
     }
 
     // MARK: - Notifications

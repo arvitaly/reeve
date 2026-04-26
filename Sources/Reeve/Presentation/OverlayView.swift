@@ -1,131 +1,170 @@
 import SwiftUI
 import ReeveKit
 
-/// Passive desktop widget: top processes by CPU, no action capability.
-///
-/// Intended to sit at desktop level beneath all app windows. Actions are available
-/// via the main Reeve window or the menu bar popover.
+/// Desktop widget — full-featured copy of the popover, sits at desktop level top-right.
 struct OverlayView: View {
     @ObservedObject var engine: MonitoringEngine
     let onClose: () -> Void
 
-    private var topProcesses: [ProcessRecord] {
-        Array(engine.snapshot.topByCPU.prefix(8))
-    }
+    @State private var sortMode: SortMode = .memory
+    @State private var treeMode: Bool = true
+    @State private var searchText: String = ""
+    @State private var expandedPIDs: Set<pid_t> = []
+    @State private var selectedProcess: ProcessRecord?
+
+    private var isSearching: Bool { !searchText.isEmpty }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            titleBar
+            header
             Divider()
-            if topProcesses.isEmpty {
-                Text("Sampling…")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .padding(12)
+            if treeMode && !isSearching {
+                treeContent
             } else {
-                ForEach(topProcesses) { process in
-                    OverlayRow(process: process)
-                }
+                listContent
             }
             Divider()
-            timestampBar
+            footer
         }
-        .frame(width: 300)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(.regularMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 10))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .sheet(item: $selectedProcess) { ActionSheet(process: $0) }
     }
 
-    // MARK: -
+    // MARK: Header
 
-    private var titleBar: some View {
-        HStack {
-            Text("Reeve")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.secondary)
-            Spacer()
-            Button(action: onClose) {
-                Image(systemName: "xmark.circle.fill")
+    private var header: some View {
+        VStack(spacing: 6) {
+            HStack {
+                Text("Reeve")
+                    .font(.headline)
+                Spacer()
+                Text(engine.snapshot.sampledAt, style: .time)
+                    .font(.caption.monospacedDigit())
                     .foregroundStyle(.secondary)
+                Button(action: onClose) {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
             }
-            .buttonStyle(.plain)
+            HStack(spacing: 6) {
+                TextField("Search processes", text: $searchText)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.caption)
+                Button {
+                    treeMode.toggle()
+                } label: {
+                    Label(treeMode ? "Tree" : "Flat",
+                          systemImage: treeMode ? "list.bullet.indent" : "list.bullet")
+                        .font(.caption)
+                        .labelStyle(.titleAndIcon)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .foregroundStyle(treeMode ? Color.accentColor : .secondary)
+            }
+        }
+        .padding(.horizontal, 10)
+        .padding(.top, 10)
+        .padding(.bottom, 6)
+    }
+
+    // MARK: Tree
+
+    private var treeContent: some View {
+        let roots = engine.snapshot.buildTree()
+        let rows = Array(visibleNodes(from: roots).prefix(200))
+        return ScrollView {
+            LazyVStack(spacing: 0) {
+                ForEach(rows, id: \.id) { node in
+                    TreeProcessRow(
+                        node: node,
+                        isExpanded: expandedPIDs.contains(node.record.pid),
+                        onTap: {
+                            if node.children.isEmpty {
+                                selectedProcess = node.record
+                            } else {
+                                let pid = node.record.pid
+                                if expandedPIDs.contains(pid) {
+                                    collapseSubtree(node)
+                                } else {
+                                    expandedPIDs.insert(pid)
+                                }
+                            }
+                        },
+                        onAction: { selectedProcess = node.record }
+                    )
+                }
+            }
+        }
+    }
+
+    // MARK: Flat list
+
+    private var listContent: some View {
+        let list: [ProcessRecord] = isSearching
+            ? engine.snapshot.processes
+                .filter { $0.name.localizedCaseInsensitiveContains(searchText) }
+                .sorted { $0.residentMemory > $1.residentMemory }
+            : sortedProcesses
+        return ScrollView {
+            LazyVStack(spacing: 0) {
+                ForEach(list) { process in
+                    ProcessRow(process: process, sortMode: sortMode) {
+                        selectedProcess = process
+                    }
+                }
+            }
+        }
+    }
+
+    private var sortedProcesses: [ProcessRecord] {
+        switch sortMode {
+        case .memory: return engine.snapshot.topByMemory
+        case .cpu:    return engine.snapshot.topByCPU
+        case .disk:   return engine.snapshot.topByDiskWrite
+        }
+    }
+
+    // MARK: Footer
+
+    private var footer: some View {
+        HStack(spacing: 8) {
+            let count = engine.snapshot.processes.count
+            Text("\(count) processes")
+                .font(.caption.monospacedDigit())
+                .foregroundStyle(.secondary)
+            if !treeMode {
+                Picker("Sort", selection: $sortMode) {
+                    ForEach(SortMode.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .frame(width: 110)
+            }
+            Spacer()
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 6)
     }
 
-    private var timestampBar: some View {
-        HStack {
-            Text("CPU · top 8")
-                .font(.caption2)
-                .foregroundStyle(.tertiary)
-            Spacer()
-            Text(engine.snapshot.sampledAt, style: .time)
-                .font(.caption2.monospacedDigit())
-                .foregroundStyle(.tertiary)
+    // MARK: Tree helpers
+
+    private func visibleNodes(from nodes: [ProcessTreeNode]) -> [ProcessTreeNode] {
+        var result: [ProcessTreeNode] = []
+        for node in nodes {
+            result.append(node)
+            if expandedPIDs.contains(node.record.pid) {
+                result += visibleNodes(from: node.children)
+            }
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 5)
-    }
-}
-
-// MARK: - Row
-
-private struct OverlayRow: View {
-    let process: ProcessRecord
-    @Environment(\.iconCache) private var iconCache
-
-    var body: some View {
-        HStack(spacing: 6) {
-            processIcon
-            Text(process.name)
-                .lineLimit(1)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .foregroundStyle(process.isReeve ? Color.accentColor : .primary)
-            diskBadge
-            Text(process.formattedMemory)
-                .font(.caption.monospacedDigit())
-                .foregroundStyle(.secondary)
-                .frame(width: 56, alignment: .trailing)
-            Text(process.formattedCPU)
-                .font(.caption.monospacedDigit())
-                .foregroundStyle(cpuColor)
-                .frame(width: 40, alignment: .trailing)
-        }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 5)
-        .font(.caption)
+        return result
     }
 
-    @ViewBuilder
-    private var diskBadge: some View {
-        if let w = process.formattedDiskWrite {
-            Text(w)
-                .font(.caption2.monospacedDigit())
-                .foregroundStyle(.orange)
-                .lineLimit(1)
-        } else if let r = process.formattedDiskRead {
-            Text(r)
-                .font(.caption2.monospacedDigit())
-                .foregroundStyle(.blue)
-                .lineLimit(1)
-        }
-    }
-
-    @ViewBuilder
-    private var processIcon: some View {
-        if let icon = iconCache.icon(for: process) {
-            Image(nsImage: icon)
-                .resizable()
-                .interpolation(.high)
-                .frame(width: 14, height: 14)
-        } else {
-            Color.clear.frame(width: 14, height: 14)
-        }
-    }
-
-    private var cpuColor: Color {
-        if process.cpuPercent > 80 { return .red }
-        if process.cpuPercent > 40 { return .orange }
-        return .secondary
+    private func collapseSubtree(_ node: ProcessTreeNode) {
+        expandedPIDs.remove(node.record.pid)
+        for child in node.children { collapseSubtree(child) }
     }
 }
