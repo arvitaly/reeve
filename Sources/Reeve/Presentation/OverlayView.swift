@@ -253,6 +253,10 @@ struct OverlayView: View {
                     Text("No apps matching \u{201C}\(query)\u{201D}")
                         .font(.caption).foregroundStyle(.secondary)
                         .frame(maxWidth: .infinity).padding(.vertical, 12)
+                } else if sorted.isEmpty {
+                    Text("Sampling…")
+                        .font(.caption).foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity).padding(.vertical, 12)
                 } else {
                     ForEach(sorted) { group in
                         groupBlock(group: group)
