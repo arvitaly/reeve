@@ -264,6 +264,7 @@ struct MenuBarView: View {
                                 group: group,
                                 onKill: {
                                     selectedGroupID = nil
+                                    appState.triggerKillFlash()
                                     let procs = group.processes
                                     Task {
                                         for p in procs { try? await Action(target: p, kind: .kill).execute() }
@@ -417,8 +418,9 @@ struct MenuBarView: View {
 
     private var footer: some View {
         HStack(spacing: 8) {
-            let count = engine.snapshot.processes.count
-            Text("\(count) processes")
+            let procs = engine.snapshot.processes.count
+            let (apps, _) = buildApplicationGroups(snapshot: engine.snapshot)
+            Text("\(apps.count) apps · \(procs) procs")
                 .font(.caption.monospacedDigit())
                 .foregroundStyle(.secondary)
             Spacer()

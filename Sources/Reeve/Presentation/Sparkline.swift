@@ -2,9 +2,16 @@ import SwiftUI
 
 struct Sparkline: View {
     let data: [Double]
-    let width: CGFloat
+    let width: CGFloat?    // nil = fill available width
     let height: CGFloat
     let color: Color
+
+    init(data: [Double], width: CGFloat? = nil, height: CGFloat, color: Color) {
+        self.data = data
+        self.width = width
+        self.height = height
+        self.color = color
+    }
 
     var body: some View {
         Canvas { ctx, size in
@@ -24,5 +31,6 @@ struct Sparkline: View {
             ctx.stroke(path, with: .color(color), lineWidth: 1)
         }
         .frame(width: width, height: height)
+        .frame(maxWidth: width == nil ? .infinity : nil)
     }
 }

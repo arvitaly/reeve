@@ -281,39 +281,130 @@ struct OverlayView: View {
         }
     }
 
-    // MARK: Dashboard (sparklines)
+    // MARK: Dashboard (sparklines + stat blocks)
 
     private var dashboardContent: some View {
-        let (apps, _) = buildApplicationGroups(snapshot: engine.snapshot)
+        let snap = engine.snapshot
+        let (apps, _) = buildApplicationGroups(snapshot: snap)
         let sorted = apps.sorted { $0.totalMemory > $1.totalMemory }
+        let physGB = Double(snap.physicalMemory) / 1_073_741_824
+        let usedGB = snap.usedMemory.map { Double($0) / 1_073_741_824 }
+        let memPct = usedGB.map { $0 / physGB * 100 }
+        let memSev: Severity = memPct.map { $0 >= 90 ? .over : $0 >= 70 ? .warn : .normal } ?? .normal
+
         return ScrollView {
-            LazyVStack(spacing: 0) {
-                ForEach(sorted.prefix(15)) { group in
-                    HStack(spacing: 8) {
-                        if let icon = group.icon {
-                            Image(nsImage: icon).resizable().interpolation(.high)
-                                .frame(width: 16, height: 16)
+            VStack(spacing: 10) {
+                HStack(spacing: 8) {
+                    dashStatBlock(
+                        eyebrow: "MEMORY · \(GroupRuleEngine.historyCapacity)S",
+                        value: usedGB.map { String(format: "%.1f GB", $0) } ?? "—",
+                        sub: usedGB.map { String(format: "of %.0f GB · %.0f%%", physGB, $0 / physGB * 100) } ?? "of \(Int(physGB)) GB",
+                        history: groupRuleEngine.systemMemHistory,
+                        color: memSev.barColor
+                    )
+                    dashStatBlock(
+                        eyebrow: "CPU",
+                        value: String(format: "%.0f%%", snap.totalCPU),
+                        sub: "\(snap.processes.count) processes",
+                        history: groupRuleEngine.systemCPUHistory,
+                        color: snap.totalCPU >= 80 ? Color.rvDanger : snap.totalCPU >= 50 ? Color.rvAccent : Color.rvBarNormal
+                    )
+                }
+                HStack(spacing: 8) {
+                    dashMiniCard(title: "Top Consumer") {
+                        if let top = sorted.first {
+                            HStack(spacing: 6) {
+                                if let icon = top.icon {
+                                    Image(nsImage: icon).resizable().interpolation(.high).frame(width: 16, height: 16)
+                                }
+                                VStack(alignment: .leading, spacing: 1) {
+                                    Text(top.displayName).font(.caption).lineLimit(1)
+                                    Text(String(format: "%@ · %.0f%%", top.formattedMemory, top.totalCPU))
+                                        .font(.caption2.monospacedDigit())
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
                         } else {
-                            Color.clear.frame(width: 16, height: 16)
+                            Text("No data").font(.caption).foregroundStyle(.tertiary)
                         }
-                        Text(group.displayName)
-                            .font(.caption).lineLimit(1)
-                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    dashMiniCard(title: "Active Rules") {
+                        let enabled = appState.groupRuleSpecs.filter { $0.isEnabled }.count
+                        let firings = appState.groupRuleEngine.actionLog.count
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text("\(enabled) rule\(enabled == 1 ? "" : "s") active")
+                                .font(.caption)
+                            Text("\(firings) firing\(firings == 1 ? "" : "s") total")
+                                .font(.caption2.monospacedDigit())
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+                Divider()
+                LazyVStack(spacing: 0) {
+                    ForEach(sorted.prefix(10)) { group in
                         let history = groupRuleEngine.groupMemHistory[group.displayName] ?? []
                         let cap = memCap(for: group, in: appState.groupRuleSpecs)
-                        let severity = group.overallSeverity(cap: cap)
-                        Sparkline(data: history, width: 60, height: 16, color: severity.barColor)
-                        Text(group.formattedMemory)
-                            .font(.caption.monospacedDigit())
-                            .foregroundStyle(severity.textColor)
-                            .frame(width: 60, alignment: .trailing)
+                        let sev = group.overallSeverity(cap: cap)
+                        HStack(spacing: 8) {
+                            if let icon = group.icon {
+                                Image(nsImage: icon).resizable().interpolation(.high).frame(width: 14, height: 14)
+                            } else {
+                                Color.clear.frame(width: 14, height: 14)
+                            }
+                            Text(group.displayName).font(.caption).lineLimit(1)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                            Sparkline(data: history, width: 50, height: 14, color: sev.barColor)
+                            Text(group.formattedMemory)
+                                .font(.caption2.monospacedDigit())
+                                .foregroundStyle(sev.textColor)
+                                .frame(width: 52, alignment: .trailing)
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 3)
                     }
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 4)
                 }
             }
-            .frame(maxWidth: .infinity)
+            .padding(10)
         }
+    }
+
+    @ViewBuilder
+    private func dashStatBlock(eyebrow: String, value: String, sub: String,
+                                history: [Double], color: Color) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(eyebrow)
+                .font(.system(size: 9, weight: .semibold))
+                .foregroundStyle(.tertiary)
+                .textCase(.uppercase)
+                .tracking(0.6)
+            Text(value)
+                .font(.system(size: 20, weight: .medium).monospacedDigit())
+                .foregroundStyle(color)
+            Text(sub)
+                .font(.caption2.monospacedDigit())
+                .foregroundStyle(.secondary)
+            Sparkline(data: history, height: 24, color: color.opacity(0.8))
+        }
+        .padding(10)
+        .background(Color.rvRowExpanded)
+        .clipShape(RoundedRectangle(cornerRadius: 7))
+    }
+
+    @ViewBuilder
+    private func dashMiniCard<Content: View>(title: String, @ViewBuilder content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(title)
+                .font(.system(size: 9, weight: .semibold))
+                .foregroundStyle(.tertiary)
+                .textCase(.uppercase)
+                .tracking(0.6)
+            content()
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.rvRowExpanded)
+        .clipShape(RoundedRectangle(cornerRadius: 7))
     }
 
     // MARK: Shared row block
@@ -372,6 +463,7 @@ struct OverlayView: View {
                 group: group,
                 onKill: {
                     selectedGroupID = nil
+                    appState.triggerKillFlash()
                     let procs = group.processes
                     Task {
                         for p in procs { try? await Action(target: p, kind: .kill).execute() }
@@ -483,8 +575,9 @@ struct OverlayView: View {
 
     private var footer: some View {
         HStack(spacing: 8) {
-            let count = engine.snapshot.processes.count
-            Text("\(count) processes")
+            let procs = engine.snapshot.processes.count
+            let (apps, _) = buildApplicationGroups(snapshot: engine.snapshot)
+            Text("\(apps.count) apps · \(procs) procs")
                 .font(.caption.monospacedDigit())
                 .foregroundStyle(.secondary)
             if widgetMode == .expanded && !showProcesses && !isSearching {

@@ -99,12 +99,14 @@ struct GroupActionLogEntry: Identifiable {
 final class GroupRuleEngine: ObservableObject {
     @Published private(set) var actionLog: [GroupActionLogEntry] = []
     @Published private(set) var groupMemHistory: [String: [Double]] = [:]   // GB, 30-sample rolling
+    @Published private(set) var systemMemHistory: [Double] = []             // GB, 30-sample rolling
+    @Published private(set) var systemCPUHistory: [Double] = []             // percent, 30-sample rolling
 
     var specs: [GroupRuleSpec] = []
     private var cooldowns: [String: ContinuousClock.Instant] = [:]
     private var cancellable: AnyCancellable?
 
-    private static let historyCapacity = 30
+    static let historyCapacity = 30
 
     func clearLog() { actionLog = [] }
 
@@ -116,7 +118,7 @@ final class GroupRuleEngine: ObservableObject {
 
     private func evaluate(snapshot: SystemSnapshot) {
         let (groups, _) = buildApplicationGroups(snapshot: snapshot)
-        updateHistory(groups: groups)
+        updateHistory(groups: groups, snapshot: snapshot)
         let now = ContinuousClock.now
         for spec in specs where spec.isEnabled {
             for group in groups {
@@ -138,7 +140,7 @@ final class GroupRuleEngine: ObservableObject {
         }
     }
 
-    private func updateHistory(groups: [ApplicationGroup]) {
+    private func updateHistory(groups: [ApplicationGroup], snapshot: SystemSnapshot) {
         var updated = groupMemHistory
         let seen = Set(groups.map { $0.displayName })
         for group in groups {
@@ -150,5 +152,17 @@ final class GroupRuleEngine: ObservableObject {
         }
         for key in updated.keys where !seen.contains(key) { updated.removeValue(forKey: key) }
         groupMemHistory = updated
+
+        if let usedMem = snapshot.usedMemory {
+            var buf = systemMemHistory
+            buf.append(Double(usedMem) / 1_073_741_824)
+            if buf.count > Self.historyCapacity { buf.removeFirst(buf.count - Self.historyCapacity) }
+            systemMemHistory = buf
+        }
+
+        var cpuBuf = systemCPUHistory
+        cpuBuf.append(snapshot.totalCPU)
+        if cpuBuf.count > Self.historyCapacity { cpuBuf.removeFirst(cpuBuf.count - Self.historyCapacity) }
+        systemCPUHistory = cpuBuf
     }
 }

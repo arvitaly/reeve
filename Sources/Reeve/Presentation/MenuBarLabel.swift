@@ -6,12 +6,14 @@ struct MenuBarLabel: View {
     @EnvironmentObject var appState: AppState
 
     private enum LabelState {
+        case flash
         case normal
         case warn
         case over(ApplicationGroup)
     }
 
     private var labelState: LabelState {
+        if let exp = appState.killFlashExpiry, exp > .now { return .flash }
         let (apps, _) = buildApplicationGroups(snapshot: engine.snapshot)
         var hasWarn = false
         for app in apps {
@@ -28,8 +30,9 @@ struct MenuBarLabel: View {
 
     var body: some View {
         switch labelState {
-        case .normal:    normalLabel
-        case .warn:      warnLabel
+        case .flash:       flashLabel
+        case .normal:      normalLabel
+        case .warn:        warnLabel
         case .over(let g): overLabel(g)
         }
     }
@@ -41,6 +44,14 @@ struct MenuBarLabel: View {
                 Text(String(format: "%.0f%%", pct))
                     .font(.caption.monospacedDigit())
             }
+        }
+    }
+
+    private var flashLabel: some View {
+        HStack(spacing: 4) {
+            Circle().fill(Color.green).frame(width: 7, height: 7)
+                .shadow(color: .green.opacity(0.6), radius: 3)
+            Text("—").font(.caption.monospacedDigit()).foregroundStyle(Color.green)
         }
     }
 

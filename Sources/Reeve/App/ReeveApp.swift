@@ -13,6 +13,8 @@ final class AppState: ObservableObject {
     let groupRuleEngine = GroupRuleEngine()
     private let notificationDelegate = NotificationDelegate()
 
+    @Published var killFlashExpiry: Date?
+
     @Published var groupRuleSpecs: [GroupRuleSpec] = [] {
         didSet {
             persistGroupSpecs()
@@ -74,6 +76,18 @@ final class AppState: ObservableObject {
             trigger: nil
         )
         UNUserNotificationCenter.current().add(request)
+    }
+
+    // MARK: - Kill flash
+
+    func triggerKillFlash() {
+        killFlashExpiry = Date.now.addingTimeInterval(0.6)
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(0.6))
+            if let exp = self?.killFlashExpiry, exp <= .now {
+                self?.killFlashExpiry = nil
+            }
+        }
     }
 
     // MARK: - Persistence
