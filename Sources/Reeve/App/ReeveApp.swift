@@ -8,6 +8,7 @@ final class AppState: ObservableObject {
     let engine: MonitoringEngine
     let overlay: OverlayController
     let iconCache: ProcessIconCache
+    let hotkey = GlobalHotkeyMonitor()
 
     @Published var ruleSpecs: [RuleSpec] = [] {
         didSet {
@@ -22,14 +23,16 @@ final class AppState: ObservableObject {
     init() {
         let engine = MonitoringEngine()
         let iconCache = ProcessIconCache()
+        let overlay = OverlayController(engine: engine, iconCache: iconCache)
         self.engine = engine
         self.iconCache = iconCache
-        self.overlay = OverlayController(engine: engine, iconCache: iconCache)
+        self.overlay = overlay
         let specs = Self.loadSpecs()
         self.ruleSpecs = specs
         engine.rules = specs.filter(\.isEnabled).map { $0.toRule() }
         requestNotificationAuthorization()
         observeActionLog()
+        hotkey.register { [weak overlay] in overlay?.toggle() }
     }
 
     // MARK: - Notifications
@@ -86,7 +89,7 @@ struct ReeveApp: App {
 
     var body: some Scene {
         MenuBarExtra {
-            MenuBarView(engine: state.engine, overlay: state.overlay)
+            MenuBarView(engine: state.engine, overlay: state.overlay, hotkey: state.hotkey)
                 .environment(\.iconCache, state.iconCache)
         } label: {
             MenuBarLabel(engine: state.engine)

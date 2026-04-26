@@ -10,6 +10,7 @@ enum SortMode: String, CaseIterable {
 struct MenuBarView: View {
     @ObservedObject var engine: MonitoringEngine
     @ObservedObject var overlay: OverlayController
+    @ObservedObject var hotkey: GlobalHotkeyMonitor
     @State private var selectedProcess: ProcessRecord?
     @State private var sortMode: SortMode = .memory
     @State private var searchText: String = ""
@@ -25,7 +26,10 @@ struct MenuBarView: View {
             footer
         }
         .frame(width: 300)
-        .onAppear { engine.showWindow(id: "menuBar") }
+        .onAppear {
+            engine.showWindow(id: "menuBar")
+            hotkey.tryActivate()
+        }
         .onDisappear { engine.hideWindow(id: "menuBar") }
         .sheet(item: $selectedProcess) { process in
             ActionSheet(process: process)
@@ -98,12 +102,23 @@ struct MenuBarView: View {
             .labelsHidden()
             .frame(width: 100)
             Spacer()
-            Button(overlay.isVisible ? "Hide Overlay" : "Overlay") {
-                overlay.toggle()
+            HStack(spacing: 3) {
+                Button(overlay.isVisible ? "Hide Overlay" : "Overlay") {
+                    overlay.toggle()
+                }
+                .buttonStyle(.plain)
+                .font(.caption)
+                .foregroundStyle(overlay.isVisible ? .primary : .secondary)
+                Text(GlobalHotkeyMonitor.shortcutLabel)
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+                    .opacity(hotkey.isActive ? 1 : 0.4)
+                    .help(hotkey.isActive ? "" : "Click to enable global shortcut (requires Accessibility access)")
+                    .onTapGesture {
+                        guard !hotkey.isActive else { return }
+                        hotkey.requestPermission()
+                    }
             }
-            .buttonStyle(.plain)
-            .font(.caption)
-            .foregroundStyle(overlay.isVisible ? .primary : .secondary)
             Button("Quit") { NSApp.terminate(nil) }
                 .buttonStyle(.plain)
                 .font(.caption)
