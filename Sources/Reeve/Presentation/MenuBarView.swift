@@ -147,6 +147,7 @@ struct ProcessRow: View {
     let process: ProcessRecord
     let onTap: () -> Void
     @Environment(\.iconCache) private var iconCache
+    @State private var isHovered = false
 
     var body: some View {
         Button(action: onTap) {
@@ -166,9 +167,16 @@ struct ProcessRow: View {
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 5)
-            .background(process.isReeve ? Color.accentColor.opacity(0.08) : .clear)
+            .background(rowBackground)
         }
         .buttonStyle(.plain)
+        .onHover { isHovered = $0 }
+    }
+
+    private var rowBackground: Color {
+        if isHovered { return Color.primary.opacity(0.06) }
+        if process.isReeve { return Color.accentColor.opacity(0.08) }
+        return .clear
     }
 
     @ViewBuilder
