@@ -123,6 +123,7 @@ private struct OverlayRow: View {
     let onConfirm: () -> Void
     let onBack: () -> Void
     @Environment(\.iconCache) private var iconCache
+    @State private var isHovered = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -143,10 +144,11 @@ private struct OverlayRow: View {
                 }
                 .padding(.horizontal, 10)
                 .padding(.vertical, 5)
-                .background(process.isReeve ? Color.accentColor.opacity(0.08) : .clear)
+                .background(overlayRowBackground)
             }
             .buttonStyle(.plain)
             .font(.caption)
+            .onHover { isHovered = $0 }
 
             if isExpanded {
                 expansionPanel
@@ -184,6 +186,12 @@ private struct OverlayRow: View {
                 .foregroundStyle(.secondary)
                 .padding(.top, 2)
         }
+    }
+
+    private var overlayRowBackground: Color {
+        if isHovered && !isExpanded { return Color.primary.opacity(0.06) }
+        if process.isReeve { return Color.accentColor.opacity(0.08) }
+        return .clear
     }
 
     @ViewBuilder
