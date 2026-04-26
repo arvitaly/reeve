@@ -121,58 +121,73 @@ enum AppAction: Identifiable {
 struct ApplicationGroupRow: View {
     let group: ApplicationGroup
     let cap: UInt64?
+    let isSelected: Bool
     let isExpanded: Bool
     let onToggle: () -> Void
-    let onAction: () -> Void
+    let onSelect: () -> Void
     @State private var isHovered = false
 
     private var severity: Severity { group.overallSeverity(cap: cap) }
 
     var body: some View {
-        Button(action: onToggle) {
-            HStack(spacing: 6) {
+        HStack(spacing: 6) {
+            // Chevron is its own tap target — does not propagate to the row's onTapGesture.
+            Button(action: onToggle) {
                 Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
                     .font(.system(size: 8, weight: .medium))
                     .foregroundStyle(group.processes.count > 1 ? Color.secondary : .clear)
                     .frame(width: 14)
-                if let icon = group.icon {
-                    Image(nsImage: icon).resizable().interpolation(.high).frame(width: 20, height: 20)
-                } else {
-                    Color.clear.frame(width: 20, height: 20)
-                }
-                Text(group.displayName)
-                    .lineLimit(1)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .foregroundStyle(group.isReeve ? Color.accentColor : .primary)
-                Text(group.processes.count > 1 ? "\(group.processes.count)" : "")
-                    .font(.caption2)
-                    .foregroundStyle(Color.rvTextFaint)
-                    .frame(width: 18, alignment: .trailing)
-                Text(group.formattedCPU)
-                    .font(.caption.monospacedDigit())
-                    .foregroundStyle(Color.rvTextDim)
-                    .frame(width: 44, alignment: .trailing)
-                Text(group.formattedMemory)
-                    .font(.caption.monospacedDigit())
-                    .foregroundStyle(severity.textColor)
-                    .frame(width: 60, alignment: .trailing)
-                HStack(spacing: 4) {
-                    MiniBar(value: Double(group.totalMemory), cap: cap.map(Double.init), width: 80, severity: severity)
-                    SeverityDot(severity: severity)
-                }
-                .frame(width: 90)
             }
-            .frame(maxWidth: .infinity)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 5)
-            .background(isHovered ? Color.primary.opacity(0.06) : .clear)
+            .buttonStyle(.plain)
+            if let icon = group.icon {
+                Image(nsImage: icon).resizable().interpolation(.high).frame(width: 20, height: 20)
+            } else {
+                Color.clear.frame(width: 20, height: 20)
+            }
+            Text(group.displayName)
+                .lineLimit(1)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .foregroundStyle(group.isReeve ? Color.accentColor : .primary)
+            Text(group.processes.count > 1 ? "\(group.processes.count)" : "")
+                .font(.caption2)
+                .foregroundStyle(Color.rvTextFaint)
+                .frame(width: 18, alignment: .trailing)
+            Text(group.formattedCPU)
+                .font(.caption.monospacedDigit())
+                .foregroundStyle(Color.rvTextDim)
+                .frame(width: 44, alignment: .trailing)
+            Text(group.formattedMemory)
+                .font(.caption.monospacedDigit())
+                .foregroundStyle(severity.textColor)
+                .frame(width: 60, alignment: .trailing)
+            HStack(spacing: 4) {
+                MiniBar(value: Double(group.totalMemory), cap: cap.map(Double.init), width: 80, severity: severity)
+                SeverityDot(severity: severity)
+            }
+            .frame(width: 90)
         }
-        .buttonStyle(.plain)
         .frame(maxWidth: .infinity)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 5)
+        .background(rowBackground)
+        .overlay(alignment: .leading) {
+            Rectangle()
+                .fill(severity.stripeColor)
+                .frame(width: 3)
+                .opacity(isSelected ? 1 : 0)
+        }
+        .contentShape(Rectangle())
+        .onTapGesture { onSelect() }
         .onHover { isHovered = $0 }
         .contextMenu {
-            Button("Action…") { onAction() }
+            Button("Action…") { onSelect() }
         }
+    }
+
+    private var rowBackground: Color {
+        if isSelected { return Color.rvRowSelected }
+        if isHovered { return Color.primary.opacity(0.06) }
+        return .clear
     }
 }
 

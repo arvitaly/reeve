@@ -9,7 +9,7 @@ Personality: precise, calm, powerful. Intervention tool, not a monitor. Watching
 
 ## ADR-1: Design Token System
 
-**Status:** Proposed
+**Status:** Implemented
 
 **Context:**
 The design handoff defines a complete token system in CSS (`reeve-tokens.css`): oklch colors, severity ramp, spacing, typography. Currently Reeve uses scattered SwiftUI color literals with no system.
@@ -35,7 +35,7 @@ SwiftUI's `Color(red:green:blue:)` is sRGB on macOS 13. The design tokens use ok
 
 ## ADR-2: Severity Computation
 
-**Status:** Proposed
+**Status:** Implemented
 
 **Context:**
 Severity (normal / warn / over) must be computed per ApplicationGroup based on:
@@ -63,7 +63,7 @@ Currently ApplicationGroup has no severity concept. GroupRuleSpec lives in AppSt
 
 ## ADR-3: Selection Model + Inline Action Bar
 
-**Status:** Proposed
+**Status:** Implemented
 **Note:** ADR-3 and ADR-4 are a single implementation unit. ADR-3 defines the selection state and action bar scaffold; ADR-4 defines the action widgets that fill it. They share the same PR.
 
 **Context:**
@@ -94,7 +94,7 @@ This is the single most impactful UX change — it cuts the intervention path fr
 
 ## ADR-4: Hold-to-Confirm (Kill) + Confirm Chip (Suspend / Renice)
 
-**Status:** Proposed
+**Status:** Implemented
 **Note:** Implemented together with ADR-3 as one unit — see ADR-3 note.
 
 **Context:**
@@ -119,7 +119,7 @@ Current ApplicationGroupSheet is a full modal sheet for all actions. The design 
 
 ## ADR-5: System Pressure Bar
 
-**Status:** Proposed
+**Status:** Implemented
 
 **Context:**
 The design adds a full-width pressure bar to the popover/widget header showing: `total used RAM / total RAM` as a filled bar + numeric labels, plus total CPU%.
@@ -145,7 +145,7 @@ Currently SystemSnapshot has no total-RAM field. Process memory sum is available
 
 ## ADR-6: Mini-Bar per Row
 
-**Status:** Proposed
+**Status:** Implemented
 
 **Context:**
 Each app row needs a visual fill bar showing current memory vs cap (if a rule exists) or current vs absolute scale (6 GB fallback). Plus a severity dot (6 px circle).

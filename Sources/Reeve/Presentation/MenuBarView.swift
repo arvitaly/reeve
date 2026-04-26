@@ -20,6 +20,9 @@ struct MenuBarView: View {
     @State private var showProcesses: Bool = false   // false = apps view, true = process tree
     @State private var expandedPIDs: Set<pid_t> = []         // process tree
     @State private var expandedGroupIDs: Set<pid_t> = []     // app groups
+    @State private var selectedGroupID: pid_t?
+    @State private var pendingChipGroup: ApplicationGroup?
+    @State private var pendingChipKind: Action.Kind = .suspend
 
     private var isSearching: Bool { !searchText.isEmpty }
 
@@ -34,6 +37,27 @@ struct MenuBarView: View {
             footer.fixedSize(horizontal: false, vertical: true)
         }
         .frame(width: 460)
+        .overlay(alignment: .bottom) {
+            if let chipGroup = pendingChipGroup {
+                ConfirmChip(
+                    group: chipGroup,
+                    kind: pendingChipKind,
+                    onConfirm: {
+                        let g = chipGroup, k = pendingChipKind
+                        withAnimation(.easeOut(duration: 0.2)) { pendingChipGroup = nil }
+                        Task {
+                            for p in g.processes { try? await Action(target: p, kind: k).execute() }
+                            selectedGroupID = nil
+                        }
+                    },
+                    onCancel: {
+                        withAnimation(.easeOut(duration: 0.2)) { pendingChipGroup = nil }
+                    }
+                )
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+        }
+        .animation(.easeOut(duration: 0.2), value: pendingChipGroup?.id)
         .onAppear {
             engine.showWindow(id: "menuBar")
             hotkey.tryActivate()
@@ -41,11 +65,13 @@ struct MenuBarView: View {
         .onDisappear {
             engine.hideWindow(id: "menuBar")
             searchText = ""
+            selectedGroupID = nil
+            pendingChipGroup = nil
         }
         .sheet(item: $pendingAction) { action in
             switch action {
-            case .group(let g):   ApplicationGroupSheet(group: g)
             case .process(let p): ActionSheet(process: p)
+            case .group: EmptyView()
             }
         }
     }
@@ -158,10 +184,12 @@ struct MenuBarView: View {
                 } else {
                     ForEach(sorted) { group in
                         let cap = memCap(for: group, in: appState.groupRuleSpecs)
+                        let isSelected = selectedGroupID == group.id
                         let expanded = expandedGroupIDs.contains(group.id)
                         ApplicationGroupRow(
                             group: group,
                             cap: cap,
+                            isSelected: isSelected,
                             isExpanded: expanded,
                             onToggle: {
                                 if expandedGroupIDs.contains(group.id) {
@@ -170,8 +198,28 @@ struct MenuBarView: View {
                                     expandedGroupIDs.insert(group.id)
                                 }
                             },
-                            onAction: { pendingAction = .group(group) }
+                            onSelect: {
+                                selectedGroupID = isSelected ? nil : group.id
+                                if isSelected { pendingChipGroup = nil }
+                            }
                         )
+                        if isSelected {
+                            InlineActionBar(
+                                group: group,
+                                onKill: {
+                                    selectedGroupID = nil
+                                    let procs = group.processes
+                                    Task {
+                                        for p in procs { try? await Action(target: p, kind: .kill).execute() }
+                                    }
+                                },
+                                onChipAction: { kind in
+                                    pendingChipGroup = group
+                                    pendingChipKind = kind
+                                },
+                                onAddRule: { /* ADR-7 */ }
+                            )
+                        }
                         if expanded {
                             ForEach(group.processes.sorted { $0.residentMemory > $1.residentMemory }) { process in
                                 ProcessRow(process: process, sortMode: sortMode) {
