@@ -63,6 +63,24 @@ public struct Action: Sendable {
             case .resume:         return "Resume"
             }
         }
+
+        /// One-sentence tooltip explaining the action and its key consequence.
+        public var helpText: String {
+            switch self {
+            case .terminate:
+                return "Sends SIGTERM; escalates to SIGKILL after 3 seconds if the process hasn't quit."
+            case .kill:
+                return "Sends SIGKILL immediately — cannot be ignored. Use when Terminate fails."
+            case .renice(let v) where v < 0:
+                return "Raises scheduling priority (nice \(v)). Requires root; may be rejected."
+            case .renice(let v):
+                return "Lowers scheduling priority (nice +\(v)). Process runs slower when competing for CPU."
+            case .suspend:
+                return "Pauses the process with SIGSTOP. CPU drops to 0%. Resumable at any time."
+            case .resume:
+                return "Resumes a paused process with SIGCONT. Safe to send even if already running."
+            }
+        }
     }
 
     public init(target: ProcessRecord, kind: Kind) {

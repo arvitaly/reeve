@@ -67,6 +67,7 @@ struct ActionSheet: View {
         }
         .buttonStyle(.bordered)
         .frame(maxWidth: .infinity)
+        .help(kind.helpText)
     }
 
     private func confirmButtons(preflight: PreflightResult) -> some View {

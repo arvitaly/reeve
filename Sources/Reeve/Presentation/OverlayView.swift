@@ -204,6 +204,7 @@ private struct OverlayRow: View {
             .font(.caption2)
             .frame(maxWidth: .infinity)
             .controlSize(.mini)
+            .help(kind.helpText)
     }
 
     private func preflightPanel(_ result: PreflightResult) -> some View {
