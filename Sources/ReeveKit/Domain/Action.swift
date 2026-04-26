@@ -22,6 +22,13 @@ public struct PreflightResult: Sendable {
     public let effect: EstimatedEffect
     /// Non-fatal conditions the user should be aware of before confirming.
     public let warnings: [String]
+
+    public init(description: String, isReversible: Bool, effect: EstimatedEffect, warnings: [String]) {
+        self.description = description
+        self.isReversible = isReversible
+        self.effect = effect
+        self.warnings = warnings
+    }
 }
 
 /// Errors that can occur during `Action.execute()`.

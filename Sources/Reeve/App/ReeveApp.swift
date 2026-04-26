@@ -10,16 +10,17 @@ final class AppState: ObservableObject {
     let iconCache: ProcessIconCache
     let hotkey = GlobalHotkeyMonitor()
     let mainWindow = MainWindowController()
+    let groupRuleEngine = GroupRuleEngine()
     private let notificationDelegate = NotificationDelegate()
 
-    @Published var ruleSpecs: [RuleSpec] = [] {
+    @Published var groupRuleSpecs: [GroupRuleSpec] = [] {
         didSet {
-            persistSpecs()
-            engine.rules = ruleSpecs.filter(\.isEnabled).map { $0.toRule() }
+            persistGroupSpecs()
+            groupRuleEngine.specs = groupRuleSpecs
         }
     }
 
-    private var logCount = 0
+    private var groupLogCount = 0
     private var cancellables = Set<AnyCancellable>()
 
     init() {
@@ -29,13 +30,14 @@ final class AppState: ObservableObject {
         self.engine = engine
         self.iconCache = iconCache
         self.overlay = overlay
-        let specs = Self.loadSpecs()
-        self.ruleSpecs = specs
-        engine.rules = specs.filter(\.isEnabled).map { $0.toRule() }
+        let specs = Self.loadGroupSpecs()
+        self.groupRuleSpecs = specs
+        groupRuleEngine.specs = specs
+        groupRuleEngine.connect(to: engine)
+        overlay.configure(appState: self)  // must precede any show() call
         requestNotificationAuthorization()
-        observeActionLog()
+        observeGroupActionLog()
         hotkey.register { [weak overlay] in overlay?.toggle() }
-        // Show overlay widget automatically on launch
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
             overlay.show()
         }
@@ -49,22 +51,22 @@ final class AppState: ObservableObject {
         center.requestAuthorization(options: [.alert, .sound]) { _, _ in }
     }
 
-    private func observeActionLog() {
-        engine.$actionLog
+    private func observeGroupActionLog() {
+        groupRuleEngine.$actionLog
             .receive(on: RunLoop.main)
             .sink { [weak self] log in
                 guard let self else { return }
-                let newEntries = log.dropFirst(self.logCount)
+                let newEntries = log.dropFirst(self.groupLogCount)
                 for entry in newEntries { self.postNotification(for: entry) }
-                self.logCount = log.count
+                self.groupLogCount = log.count
             }
             .store(in: &cancellables)
     }
 
-    private func postNotification(for entry: ActionLogEntry) {
+    private func postNotification(for entry: GroupActionLogEntry) {
         let content = UNMutableNotificationContent()
-        content.title = "Rule fired: \(entry.ruleName)"
-        content.body = "\(entry.action.target.name) (PID \(entry.action.target.pid))  ·  \(entry.action.kind.shortName)"
+        content.title = "Rule fired: \(entry.appName)"
+        content.body = "\(entry.conditionDescription)  ·  \(entry.actionName)  ·  \(entry.processCount) processes"
         content.sound = .default
         let request = UNNotificationRequest(
             identifier: entry.id.uuidString,
@@ -76,16 +78,15 @@ final class AppState: ObservableObject {
 
     // MARK: - Persistence
 
-
-    private func persistSpecs() {
-        guard let data = try? JSONEncoder().encode(ruleSpecs) else { return }
-        UserDefaults.standard.set(data, forKey: "ruleSpecs")
+    private func persistGroupSpecs() {
+        guard let data = try? JSONEncoder().encode(groupRuleSpecs) else { return }
+        UserDefaults.standard.set(data, forKey: "groupRuleSpecs")
     }
 
-    private static func loadSpecs() -> [ReeveKit.RuleSpec] {
+    private static func loadGroupSpecs() -> [GroupRuleSpec] {
         guard
-            let data = UserDefaults.standard.data(forKey: "ruleSpecs"),
-            let specs = try? JSONDecoder().decode([RuleSpec].self, from: data)
+            let data = UserDefaults.standard.data(forKey: "groupRuleSpecs"),
+            let specs = try? JSONDecoder().decode([GroupRuleSpec].self, from: data)
         else { return [] }
         return specs
     }
@@ -93,10 +94,7 @@ final class AppState: ObservableObject {
 
 // MARK: - Notification delegate
 
-/// Routes UNUserNotificationCenter callbacks. Kept separate from AppState
-/// because UNUserNotificationCenterDelegate requires NSObject inheritance.
 final class NotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
-    // Show banners even while the app's menu bar is open.
     func userNotificationCenter(
         _ center: UNUserNotificationCenter,
         willPresent notification: UNNotification,
@@ -105,7 +103,6 @@ final class NotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
         completionHandler([.banner, .sound])
     }
 
-    // Open Settings (Log tab) when the user taps a notification.
     func userNotificationCenter(
         _ center: UNUserNotificationCenter,
         didReceive response: UNNotificationResponse,

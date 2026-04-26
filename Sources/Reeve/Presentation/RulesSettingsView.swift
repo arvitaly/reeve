@@ -1,7 +1,7 @@
 import SwiftUI
 import ReeveKit
 
-// MARK: - Root
+// MARK: - Root (Settings window)
 
 struct RulesSettingsView: View {
     @EnvironmentObject var appState: AppState
@@ -11,7 +11,7 @@ struct RulesSettingsView: View {
             RulesTab()
                 .environmentObject(appState)
                 .tabItem { Label("Rules", systemImage: "slider.horizontal.3") }
-            LogTab(engine: appState.engine)
+            LogTab(groupRuleEngine: appState.groupRuleEngine)
                 .tabItem { Label("Log", systemImage: "list.bullet.rectangle") }
             GeneralTab()
                 .tabItem { Label("General", systemImage: "gearshape") }
@@ -24,13 +24,13 @@ struct RulesSettingsView: View {
 
 struct RulesTab: View {
     @EnvironmentObject var appState: AppState
-    @State private var editing: RuleSpec?
+    @State private var editing: GroupRuleSpec?
     @State private var isAdding = false
-    @State private var pendingDelete: RuleSpec?
+    @State private var pendingDelete: GroupRuleSpec?
 
     var body: some View {
         VStack(spacing: 0) {
-            if appState.ruleSpecs.isEmpty {
+            if appState.groupRuleSpecs.isEmpty {
                 emptyState
             } else {
                 ruleList
@@ -39,24 +39,22 @@ struct RulesTab: View {
             toolbar
         }
         .sheet(isPresented: $isAdding) {
-            RuleEditSheet(spec: RuleSpec()) { appState.ruleSpecs.append($0) }
+            GroupRuleEditSheet(spec: GroupRuleSpec()) { appState.groupRuleSpecs.append($0) }
         }
         .sheet(item: $editing) { spec in
-            RuleEditSheet(spec: spec) { updated in
-                guard let i = appState.ruleSpecs.firstIndex(where: { $0.id == updated.id })
+            GroupRuleEditSheet(spec: spec) { updated in
+                guard let i = appState.groupRuleSpecs.firstIndex(where: { $0.id == updated.id })
                 else { return }
-                appState.ruleSpecs[i] = updated
+                appState.groupRuleSpecs[i] = updated
             }
         }
         .confirmationDialog(
-            "Delete \"\(pendingDelete?.name ?? "")\"?",
+            "Delete \"\(pendingDelete?.appNamePattern ?? "")\"?",
             isPresented: Binding(get: { pendingDelete != nil }, set: { if !$0 { pendingDelete = nil } }),
             titleVisibility: .visible
         ) {
             Button("Delete", role: .destructive) {
-                if let spec = pendingDelete {
-                    appState.ruleSpecs.removeAll { $0.id == spec.id }
-                }
+                if let spec = pendingDelete { appState.groupRuleSpecs.removeAll { $0.id == spec.id } }
                 pendingDelete = nil
             }
             Button("Cancel", role: .cancel) { pendingDelete = nil }
@@ -70,11 +68,11 @@ struct RulesTab: View {
                 .foregroundStyle(.secondary)
             Text("No rules yet")
                 .foregroundStyle(.secondary)
-            Text("Rules fire an action automatically whenever a condition holds.")
+            Text("Rules automatically act on an application group when a threshold is crossed.")
                 .font(.caption)
                 .foregroundStyle(.tertiary)
                 .multilineTextAlignment(.center)
-            Button("Add your first rule") { isAdding = true }
+            Button("Add rule") { isAdding = true }
                 .buttonStyle(.borderedProminent)
                 .padding(.top, 4)
         }
@@ -83,12 +81,10 @@ struct RulesTab: View {
 
     private var ruleList: some View {
         List {
-            ForEach($appState.ruleSpecs) { $spec in
-                RuleSpecRow(spec: $spec, onEdit: { editing = spec }, onDelete: {
-                    pendingDelete = spec
-                })
+            ForEach($appState.groupRuleSpecs) { $spec in
+                GroupRuleSpecRow(spec: $spec, onEdit: { editing = spec }, onDelete: { pendingDelete = spec })
             }
-            .onMove { appState.ruleSpecs.move(fromOffsets: $0, toOffset: $1) }
+            .onMove { appState.groupRuleSpecs.move(fromOffsets: $0, toOffset: $1) }
         }
         .listStyle(.inset)
     }
@@ -99,7 +95,7 @@ struct RulesTab: View {
                 Label("Add Rule", systemImage: "plus")
             }
             Spacer()
-            let n = appState.ruleSpecs.count
+            let n = appState.groupRuleSpecs.count
             Text("\(n) rule\(n == 1 ? "" : "s")")
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -112,15 +108,11 @@ struct RulesTab: View {
 // MARK: - Log tab
 
 struct LogTab: View {
-    @ObservedObject var engine: MonitoringEngine
-
-    private var sortedLog: [ActionLogEntry] {
-        engine.actionLog.reversed()
-    }
+    @ObservedObject var groupRuleEngine: GroupRuleEngine
 
     var body: some View {
         VStack(spacing: 0) {
-            if engine.actionLog.isEmpty {
+            if groupRuleEngine.actionLog.isEmpty {
                 VStack(spacing: 8) {
                     Image(systemName: "checkmark.circle")
                         .font(.largeTitle)
@@ -130,19 +122,20 @@ struct LogTab: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                List(sortedLog) { entry in
-                    LogEntryRow(entry: entry)
+                List(groupRuleEngine.actionLog.reversed()) { entry in
+                    GroupLogEntryRow(entry: entry)
                 }
                 .listStyle(.inset)
             }
             Divider()
             HStack {
-                Text("\(engine.actionLog.count) entr\(engine.actionLog.count == 1 ? "y" : "ies")")
+                let n = groupRuleEngine.actionLog.count
+                Text("\(n) entr\(n == 1 ? "y" : "ies")")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Spacer()
-                if !engine.actionLog.isEmpty {
-                    Button("Clear") { engine.clearLog() }
+                if !groupRuleEngine.actionLog.isEmpty {
+                    Button("Clear") { groupRuleEngine.clearLog() }
                         .buttonStyle(.plain)
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -154,24 +147,22 @@ struct LogTab: View {
     }
 }
 
-private struct LogEntryRow: View {
-    let entry: ActionLogEntry
+private struct GroupLogEntryRow: View {
+    let entry: GroupActionLogEntry
 
     var body: some View {
         HStack(spacing: 10) {
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 6) {
-                    Text(entry.action.target.name)
-                        .fontWeight(.medium)
-                    Text("·")
-                        .foregroundStyle(.tertiary)
-                    Text(entry.ruleName)
-                        .foregroundStyle(.secondary)
+                    Text(entry.appName).fontWeight(.medium)
+                    Text("·").foregroundStyle(.tertiary)
+                    Text(entry.actionName).foregroundStyle(.secondary)
+                    Text("·").foregroundStyle(.tertiary)
+                    Text("\(entry.processCount) proc.").font(.caption).foregroundStyle(.tertiary)
                 }
-                Text("\(entry.preflight.description)")
+                Text(entry.conditionDescription)
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                    .lineLimit(1)
             }
             Spacer()
             VStack(alignment: .trailing, spacing: 2) {
@@ -189,8 +180,8 @@ private struct LogEntryRow: View {
 
 // MARK: - Rule row
 
-private struct RuleSpecRow: View {
-    @Binding var spec: RuleSpec
+private struct GroupRuleSpecRow: View {
+    @Binding var spec: GroupRuleSpec
     let onEdit: () -> Void
     let onDelete: () -> Void
 
@@ -201,7 +192,7 @@ private struct RuleSpecRow: View {
                 .toggleStyle(.switch)
                 .controlSize(.small)
             VStack(alignment: .leading, spacing: 2) {
-                Text(spec.name.isEmpty ? "(unnamed)" : spec.name)
+                Text(spec.appNamePattern.isEmpty ? "(unnamed)" : spec.appNamePattern)
                     .fontWeight(.medium)
                 Text("\(spec.condition.displayName)  →  \(spec.action.displayName)")
                     .font(.caption)
@@ -213,8 +204,7 @@ private struct RuleSpecRow: View {
                 .font(.caption)
                 .foregroundStyle(Color.accentColor)
             Button(action: onDelete) {
-                Image(systemName: "trash")
-                    .foregroundStyle(.red)
+                Image(systemName: "trash").foregroundStyle(.red)
             }
             .buttonStyle(.plain)
         }
@@ -224,43 +214,37 @@ private struct RuleSpecRow: View {
 
 // MARK: - Edit sheet
 
-struct RuleEditSheet: View {
-    @State private var spec: RuleSpec
-    @State private var condTag: CondTag = .cpu
-    @State private var cpuThreshold: Double = 50
-    @State private var memGB: Double = 1.0
-    @State private var diskMBps: Double = 10.0
-    @State private var nameQuery: String = ""
+struct GroupRuleEditSheet: View {
+    @State private var spec: GroupRuleSpec
+    @State private var condTag: CondTag = .memory
+    @State private var memGB: Double = 2.0
+    @State private var cpuPct: Double = 80.0
     @Environment(\.dismiss) private var dismiss
-
-    let onSave: (RuleSpec) -> Void
+    let onSave: (GroupRuleSpec) -> Void
 
     enum CondTag: String, CaseIterable, Identifiable {
-        case cpu = "CPU"
         case memory = "Memory"
-        case disk = "Disk"
-        case name = "Name"
+        case cpu = "CPU"
         var id: String { rawValue }
     }
 
-    init(spec: RuleSpec, onSave: @escaping (RuleSpec) -> Void) {
+    init(spec: GroupRuleSpec, onSave: @escaping (GroupRuleSpec) -> Void) {
         self.onSave = onSave
         _spec = State(initialValue: spec)
         switch spec.condition {
-        case .cpuAbove(let v):             _condTag = State(initialValue: .cpu);    _cpuThreshold = State(initialValue: v)
-        case .memoryAboveGB(let v):        _condTag = State(initialValue: .memory); _memGB = State(initialValue: v)
-        case .diskWriteAboveMBps(let v):   _condTag = State(initialValue: .disk);   _diskMBps = State(initialValue: v)
-        case .nameContains(let s):         _condTag = State(initialValue: .name);   _nameQuery = State(initialValue: s)
+        case .totalMemoryAboveGB(let v): _condTag = State(initialValue: .memory); _memGB = State(initialValue: v)
+        case .totalCPUAbove(let v):      _condTag = State(initialValue: .cpu);    _cpuPct = State(initialValue: v)
         }
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text(spec.name.isEmpty ? "New Rule" : spec.name)
+            Text(spec.appNamePattern.isEmpty ? "New Rule" : spec.appNamePattern)
                 .font(.headline)
 
             Form {
-                TextField("Name", text: $spec.name)
+                TextField("App name", text: $spec.appNamePattern)
+                    .help("Case-insensitive substring match on the application name shown in the app list (e.g. \"Google Chrome\", \"Chrome\").")
                 Divider()
 
                 Picker("Condition", selection: $condTag) {
@@ -268,10 +252,10 @@ struct RuleEditSheet: View {
                 }
                 .pickerStyle(.segmented)
 
-                conditionValueField
+                conditionField
 
                 Picker("Action", selection: $spec.action) {
-                    ForEach(RuleSpec.ActionKind.allCases, id: \.self) {
+                    ForEach(GroupRuleSpec.ActionKind.allCases, id: \.self) {
                         Text($0.displayName).tag($0)
                     }
                 }
@@ -282,8 +266,7 @@ struct RuleEditSheet: View {
                     TextField("", value: $spec.cooldownSeconds, format: .number)
                         .frame(width: 60)
                         .multilineTextAlignment(.trailing)
-                    Text("s")
-                        .foregroundStyle(.secondary)
+                    Text("s").foregroundStyle(.secondary)
                 }
             }
 
@@ -298,65 +281,39 @@ struct RuleEditSheet: View {
                     dismiss()
                 }
                 .buttonStyle(.borderedProminent)
-                .disabled(spec.name.isEmpty || !conditionIsValid)
+                .disabled(spec.appNamePattern.trimmingCharacters(in: .whitespaces).isEmpty)
             }
         }
         .padding(20)
-        .frame(width: 380, height: 310)
+        .frame(width: 380, height: 280)
     }
 
     @ViewBuilder
-    private var conditionValueField: some View {
+    private var conditionField: some View {
         switch condTag {
-        case .cpu:
-            HStack {
-                Text("CPU above")
-                Slider(value: $cpuThreshold, in: 1...100, step: 1)
-                Text("\(Int(cpuThreshold))%")
-                    .frame(width: 36)
-                    .monospacedDigit()
-            }
         case .memory:
             HStack {
-                Text("Memory above")
+                Text("Total memory above")
                 TextField("", value: $memGB, format: .number)
                     .frame(width: 60)
                     .multilineTextAlignment(.trailing)
-                Text("GB")
-                    .foregroundStyle(.secondary)
+                Text("GB").foregroundStyle(.secondary)
             }
-        case .disk:
+        case .cpu:
             HStack {
-                Text("Disk write above")
-                TextField("", value: $diskMBps, format: .number)
-                    .frame(width: 60)
-                    .multilineTextAlignment(.trailing)
-                Text("MB/s")
-                    .foregroundStyle(.secondary)
-            }
-        case .name:
-            HStack {
-                Text("Name contains")
-                TextField("process name", text: $nameQuery)
+                Text("Total CPU above")
+                Slider(value: $cpuPct, in: 1...400, step: 1)
+                Text("\(Int(cpuPct))%")
+                    .frame(width: 44)
+                    .monospacedDigit()
             }
         }
     }
 
-    private var assembledCondition: RuleSpec.ConditionKind {
+    private var assembledCondition: GroupRuleSpec.ConditionKind {
         switch condTag {
-        case .cpu:    return .cpuAbove(cpuThreshold)
-        case .memory: return .memoryAboveGB(memGB)
-        case .disk:   return .diskWriteAboveMBps(diskMBps)
-        case .name:   return .nameContains(nameQuery)
-        }
-    }
-
-    private var conditionIsValid: Bool {
-        switch condTag {
-        case .cpu:    return cpuThreshold > 0
-        case .memory: return memGB > 0
-        case .disk:   return diskMBps > 0
-        case .name:   return !nameQuery.trimmingCharacters(in: .whitespaces).isEmpty
+        case .memory: return .totalMemoryAboveGB(memGB)
+        case .cpu:    return .totalCPUAbove(cpuPct)
         }
     }
 }

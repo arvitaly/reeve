@@ -14,25 +14,24 @@ struct MenuBarView: View {
     @EnvironmentObject var appState: AppState
     let mainWindow: MainWindowController
 
-    @State private var selectedProcess: ProcessRecord?
+    @State private var pendingAction: AppAction?
     @State private var sortMode: SortMode = .memory
     @State private var searchText: String = ""
-    @State private var treeMode: Bool = true
-    @State private var expandedPIDs: Set<pid_t> = []
+    @State private var showProcesses: Bool = false   // false = apps view, true = process tree
+    @State private var expandedPIDs: Set<pid_t> = []         // process tree
+    @State private var expandedGroupIDs: Set<pid_t> = []     // app groups
 
     private var isSearching: Bool { !searchText.isEmpty }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            header
+            header.fixedSize(horizontal: false, vertical: true)
             Divider()
-            if treeMode && !isSearching {
-                treeList
-            } else {
-                processList
-            }
+            columnHeaders.fixedSize(horizontal: false, vertical: true)
             Divider()
-            footer
+            content
+            Divider()
+            footer.fixedSize(horizontal: false, vertical: true)
         }
         .frame(width: 460)
         .onAppear {
@@ -43,8 +42,11 @@ struct MenuBarView: View {
             engine.hideWindow(id: "menuBar")
             searchText = ""
         }
-        .sheet(item: $selectedProcess) { process in
-            ActionSheet(process: process)
+        .sheet(item: $pendingAction) { action in
+            switch action {
+            case .group(let g):   ApplicationGroupSheet(group: g)
+            case .process(let p): ActionSheet(process: p)
+            }
         }
     }
 
@@ -63,22 +65,23 @@ struct MenuBarView: View {
                     .font(.caption.monospacedDigit())
                     .foregroundStyle(.secondary)
             }
+            PressureBar(snapshot: engine.snapshot)
             HStack(spacing: 6) {
-                TextField("Search processes", text: $searchText)
+                TextField("Search", text: $searchText)
                     .textFieldStyle(.roundedBorder)
                     .font(.caption)
                 Button {
-                    treeMode.toggle()
+                    showProcesses.toggle()
                 } label: {
-                    Label(treeMode ? "Tree" : "Flat",
-                          systemImage: treeMode ? "list.bullet.indent" : "list.bullet")
+                    Label(showProcesses ? "Processes" : "Apps",
+                          systemImage: showProcesses ? "list.bullet.indent" : "app.badge")
                         .font(.caption)
                         .labelStyle(.titleAndIcon)
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.small)
-                .foregroundStyle(treeMode ? Color.accentColor : .secondary)
-                .help(treeMode ? "Switch to flat list" : "Switch to process tree")
+                .foregroundStyle(showProcesses ? .secondary : Color.accentColor)
+                .help(showProcesses ? "Switch to application view" : "Switch to process tree")
             }
         }
         .padding(.horizontal, 12)
@@ -86,28 +89,100 @@ struct MenuBarView: View {
         .padding(.bottom, 6)
     }
 
-    // MARK: Lists — virtualized
+    // MARK: Column headers
 
-    private static let flatLimit = 15
-    private static let searchLimit = 25
-    private static let treeDisplayLimit = 50
+    private var columnHeaders: some View {
+        HStack(spacing: 6) {
+            // Leading spacer: process rows use icon-only offset; apps rows use chevron+icon
+            Color.clear.frame(width: showProcesses ? 18 : 40)
+            Text(showProcesses ? "Process" : "Application")
+                .frame(maxWidth: .infinity, alignment: .leading)
+            if showProcesses {
+                Text("Mem").frame(width: 68, alignment: .trailing)  // process rows unchanged
+                Text("CPU").frame(width: 44, alignment: .trailing)
+            } else {
+                Color.clear.frame(width: 18)  // count
+                sortHeader("CPU", mode: .cpu, width: 44)
+                sortHeader("Mem", mode: .memory, width: 60)
+                Color.clear.frame(width: 90)  // bar+dot
+            }
+        }
+        .font(.caption2.weight(.medium))
+        .foregroundStyle(.secondary)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 4)
+        .background(Color.primary.opacity(0.04))
+    }
+
+    private func sortHeader(_ label: String, mode: SortMode, width: CGFloat) -> some View {
+        Button {
+            sortMode = (sortMode == mode) ? .memory : mode
+        } label: {
+            HStack(spacing: 2) {
+                Text(label)
+                if sortMode == mode {
+                    Image(systemName: "chevron.down").font(.system(size: 7, weight: .bold))
+                }
+            }
+            .frame(width: width, alignment: .trailing)
+            .foregroundStyle(sortMode == mode ? Color.accentColor : .secondary)
+        }
+        .buttonStyle(.plain)
+    }
+
+    // MARK: Content
+
+    @ViewBuilder
+    private var content: some View {
+        if showProcesses || isSearching {
+            processContent
+        } else {
+            appsContent
+        }
+    }
+
+    // MARK: Apps view
+
+    private static let systemLimit = 5
     private static let listMaxHeight: CGFloat = 500
 
-    private var processList: some View {
-        let list = isSearching ? filteredProcesses : Array(sortedProcesses.prefix(Self.flatLimit))
+    private var appsContent: some View {
+        let (apps, system) = buildApplicationGroups(snapshot: engine.snapshot)
+        let sorted = sortedGroups(apps)
         return ScrollView {
             LazyVStack(spacing: 0) {
-                if list.isEmpty {
-                    Text("No matches")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 12)
+                if sorted.isEmpty {
+                    Text("Sampling…")
+                        .font(.caption).foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity).padding(.vertical, 12)
                 } else {
-                    ForEach(list) { process in
-                        ProcessRow(process: process, sortMode: sortMode) {
-                            selectedProcess = process
+                    ForEach(sorted) { group in
+                        let cap = memCap(for: group, in: appState.groupRuleSpecs)
+                        let expanded = expandedGroupIDs.contains(group.id)
+                        ApplicationGroupRow(
+                            group: group,
+                            cap: cap,
+                            isExpanded: expanded,
+                            onToggle: {
+                                if expandedGroupIDs.contains(group.id) {
+                                    expandedGroupIDs.remove(group.id)
+                                } else {
+                                    expandedGroupIDs.insert(group.id)
+                                }
+                            },
+                            onAction: { pendingAction = .group(group) }
+                        )
+                        if expanded {
+                            ForEach(group.processes.sorted { $0.residentMemory > $1.residentMemory }) { process in
+                                ProcessRow(process: process, sortMode: sortMode) {
+                                    pendingAction = .process(process)
+                                }
+                                .padding(.leading, 22)
+                            }
                         }
+                    }
+                    if !system.isEmpty {
+                        systemSection(system)
                     }
                 }
             }
@@ -115,41 +190,93 @@ struct MenuBarView: View {
         .frame(maxHeight: Self.listMaxHeight)
     }
 
-    private var treeList: some View {
-        let roots = engine.snapshot.buildTree()
-        let rows = Array(visibleNodes(from: roots).prefix(Self.treeDisplayLimit))
+    private func sortedGroups(_ groups: [ApplicationGroup]) -> [ApplicationGroup] {
+        switch sortMode {
+        case .memory: return groups.sorted { $0.totalMemory > $1.totalMemory }
+        case .cpu:    return groups.sorted { $0.totalCPU > $1.totalCPU }
+        case .disk:   return groups.sorted { $0.totalDiskWrite > $1.totalDiskWrite }
+        }
+    }
+
+    private func systemSection(_ procs: [ProcessRecord]) -> some View {
+        VStack(spacing: 0) {
+            Divider().padding(.vertical, 2)
+            HStack {
+                Text("System").font(.caption2.weight(.medium)).foregroundStyle(.tertiary)
+                Spacer()
+                Text("\(procs.count) processes").font(.caption2).foregroundStyle(.tertiary)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 3)
+            ForEach(Array(procs.prefix(Self.systemLimit))) { proc in
+                ProcessRow(process: proc, sortMode: .memory) {
+                    pendingAction = .process(proc)
+                }
+            }
+        }
+    }
+
+    // MARK: Process view (tree, searched)
+
+    private static let treeDisplayLimit = 50
+    private static let searchLimit = 25
+
+    private var processContent: some View {
+        let list: [ProcessRecord]
+        if isSearching {
+            list = Array(engine.snapshot.processes
+                .filter { $0.name.localizedCaseInsensitiveContains(searchText) }
+                .sorted { $0.residentMemory > $1.residentMemory }
+                .prefix(Self.searchLimit))
+        } else {
+            list = []
+        }
+
         return ScrollView {
             LazyVStack(spacing: 0) {
-                if rows.isEmpty {
-                    Text("Sampling…")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 12)
-                } else {
-                    ForEach(rows, id: \.id) { node in
-                        TreeProcessRow(
-                            node: node,
-                            isExpanded: expandedPIDs.contains(node.record.pid),
-                            onTap: {
-                                if node.children.isEmpty {
-                                    selectedProcess = node.record
-                                } else {
-                                    let pid = node.record.pid
-                                    if expandedPIDs.contains(pid) {
-                                        collapseSubtree(node)
-                                    } else {
-                                        expandedPIDs.insert(pid)
-                                    }
-                                }
-                            },
-                            onAction: { selectedProcess = node.record }
-                        )
+                if isSearching {
+                    ForEach(list) { process in
+                        ProcessRow(process: process, sortMode: sortMode) {
+                            pendingAction = .process(process)
+                        }
                     }
+                    if list.isEmpty {
+                        Text("No matches").font(.caption).foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity).padding(.vertical, 12)
+                    }
+                } else {
+                    treeRows
                 }
             }
         }
         .frame(maxHeight: Self.listMaxHeight)
+    }
+
+    @ViewBuilder
+    private var treeRows: some View {
+        let roots = engine.snapshot.buildTree()
+        let rows = Array(visibleNodes(from: roots).prefix(Self.treeDisplayLimit))
+        if rows.isEmpty {
+            Text("Sampling…").font(.caption).foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity).padding(.vertical, 12)
+        } else {
+            ForEach(rows, id: \.id) { node in
+                TreeProcessRow(
+                    node: node,
+                    isExpanded: expandedPIDs.contains(node.record.pid),
+                    onTap: {
+                        if node.children.isEmpty {
+                            pendingAction = .process(node.record)
+                        } else {
+                            let pid = node.record.pid
+                            if expandedPIDs.contains(pid) { collapseSubtree(node) }
+                            else { expandedPIDs.insert(pid) }
+                        }
+                    },
+                    onAction: { pendingAction = .process(node.record) }
+                )
+            }
+        }
     }
 
     private func visibleNodes(from nodes: [ProcessTreeNode]) -> [ProcessTreeNode] {
@@ -168,51 +295,14 @@ struct MenuBarView: View {
         for child in node.children { collapseSubtree(child) }
     }
 
-    // MARK: Computed data
-
-    private var filteredProcesses: [ProcessRecord] {
-        Array(engine.snapshot.processes
-            .filter { $0.name.localizedCaseInsensitiveContains(searchText) }
-            .sorted { $0.residentMemory > $1.residentMemory }
-            .prefix(Self.searchLimit))
-    }
-
-    private var sortedProcesses: [ProcessRecord] {
-        switch sortMode {
-        case .memory: return engine.snapshot.topByMemory
-        case .cpu:    return engine.snapshot.topByCPU
-        case .disk:   return engine.snapshot.topByDiskWrite
-        }
-    }
-
-    private var processCountLabel: String {
-        if isSearching {
-            let total = engine.snapshot.processes.filter {
-                $0.name.localizedCaseInsensitiveContains(searchText)
-            }.count
-            let shown = min(total, Self.searchLimit)
-            return total > Self.searchLimit ? "\(shown) of \(total)" : "\(total)"
-        }
-        return "\(engine.snapshot.processes.count)"
-    }
-
     // MARK: Footer
 
     private var footer: some View {
         HStack(spacing: 8) {
-            Text(processCountLabel)
+            let count = engine.snapshot.processes.count
+            Text("\(count) processes")
                 .font(.caption.monospacedDigit())
                 .foregroundStyle(.secondary)
-            if !treeMode {
-                Picker("Sort", selection: $sortMode) {
-                    ForEach(SortMode.allCases, id: \.self) { mode in
-                        Text(mode.rawValue).tag(mode)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .labelsHidden()
-                .frame(width: 100)
-            }
             Spacer()
             Divider().frame(height: 14)
             HStack(spacing: 3) {
@@ -260,7 +350,6 @@ struct TreeProcessRow: View {
     var body: some View {
         Button(action: onTap) {
             HStack(spacing: 0) {
-                // Indentation
                 if node.depth > 0 {
                     Color.clear.frame(width: indent)
                     Image(systemName: "arrow.turn.down.right")
@@ -268,7 +357,6 @@ struct TreeProcessRow: View {
                         .foregroundStyle(.tertiary)
                         .frame(width: 12)
                 }
-                // Disclosure chevron (only for nodes with children)
                 if hasChildren {
                     Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
                         .font(.system(size: 9, weight: .medium))
@@ -353,7 +441,6 @@ struct ProcessRow: View {
         .onHover { isHovered = $0 }
     }
 
-    // Primary metric first, secondary after. Disk activity always as badge (never as column).
     @ViewBuilder
     private var metrics: some View {
         diskBadge

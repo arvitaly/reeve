@@ -12,12 +12,17 @@ final class OverlayController: NSObject, ObservableObject, NSWindowDelegate {
     @Published private(set) var isVisible = false
 
     private weak var engine: MonitoringEngine?
+    private weak var appState: AppState?
     private let iconCache: ProcessIconCache
     private var panel: NSPanel?
 
     init(engine: MonitoringEngine, iconCache: ProcessIconCache) {
         self.engine = engine
         self.iconCache = iconCache
+    }
+
+    func configure(appState: AppState) {
+        self.appState = appState
     }
 
     func toggle() {
@@ -48,7 +53,7 @@ final class OverlayController: NSObject, ObservableObject, NSWindowDelegate {
 
     private func makePanel() -> NSPanel {
         let p = NSPanel(
-            contentRect: NSRect(x: 0, y: 0, width: 380, height: 700),
+            contentRect: NSRect(x: 0, y: 0, width: 520, height: 1100),
             styleMask: [.nonactivatingPanel, .fullSizeContentView, .titled, .closable, .resizable],
             backing: .buffered,
             defer: false
@@ -64,26 +69,28 @@ final class OverlayController: NSObject, ObservableObject, NSWindowDelegate {
         p.isOpaque = false
         p.hasShadow = true
         p.isReleasedWhenClosed = false
+        // Restore saved frame. If no frame was saved the origin stays at 0 (from contentRect).
+        // x==0 means either "no autosave" or a stale left-edge position — reset to default top-right.
         p.setFrameAutosaveName("ReeveOverlay")
-
-        if p.frame.origin == .zero {
-            // Default position: top-right of main screen, below menu bar
+        if p.frame.minX == 0 {
             if let screen = NSScreen.main {
                 let margin: CGFloat = 16
                 let x = screen.visibleFrame.maxX - p.frame.width - margin
                 let y = screen.visibleFrame.maxY - p.frame.height - margin
                 p.setFrameOrigin(NSPoint(x: x, y: y))
+                p.saveFrame(usingName: "ReeveOverlay")
             } else {
                 p.center()
             }
         }
 
-        guard let engine else { return p }
+        guard let engine, let appState else { return p }
         let content = NSHostingView(rootView:
             OverlayView(engine: engine, onClose: { [weak self] in self?.hide() })
+                .environmentObject(appState)
                 .environment(\.iconCache, iconCache)
         )
-        content.translatesAutoresizingMaskIntoConstraints = false
+        content.autoresizingMask = [.width, .height]
         p.contentView = content
 
         p.delegate = self

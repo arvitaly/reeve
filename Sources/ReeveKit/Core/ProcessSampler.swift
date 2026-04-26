@@ -15,6 +15,8 @@ public actor ProcessSampler {
     private var cpuBaselines: [pid_t: UInt64] = [:]
     private var diskBaselines: [pid_t: (read: UInt64, write: UInt64)] = [:]
     private var lastSampleTime: ContinuousClock.Instant = .now
+    // ProcessInfo.processInfo.physicalMemory is a constant on a running machine
+    private let physicalMemory: UInt64 = ProcessInfo.processInfo.physicalMemory
 
     public init() {}
 
@@ -104,7 +106,33 @@ public actor ProcessSampler {
         cpuBaselines = newCPUBaselines
         diskBaselines = newDiskBaselines
         lastSampleTime = now
-        return SystemSnapshot(processes: processes, sampledAt: .now)
+
+        let totalCPU = processes.reduce(0.0) { $0 + $1.cpuPercent }
+        return SystemSnapshot(
+            processes: processes,
+            sampledAt: .now,
+            physicalMemory: physicalMemory,
+            usedMemory: sampleUsedMemory(),
+            totalCPU: totalCPU
+        )
+    }
+
+    // host_statistics64 with HOST_VM_INFO64 gives wire + active + compressor pages —
+    // what Activity Monitor labels "Memory Used". Documented in <mach/host_info.h>.
+    private func sampleUsedMemory() -> UInt64? {
+        var vmStats = vm_statistics64_data_t()
+        var count = mach_msg_type_number_t(
+            MemoryLayout<vm_statistics64_data_t>.size / MemoryLayout<integer_t>.size
+        )
+        let kr: kern_return_t = withUnsafeMutablePointer(to: &vmStats) { statsPtr in
+            statsPtr.withMemoryRebound(to: integer_t.self, capacity: Int(count)) {
+                host_statistics64(mach_host_self(), HOST_VM_INFO64, $0, &count)
+            }
+        }
+        guard kr == KERN_SUCCESS else { return nil }
+        let pages = UInt64(vmStats.wire_count) + UInt64(vmStats.active_count)
+                  + UInt64(vmStats.compressor_page_count)
+        return pages * UInt64(vm_kernel_page_size)
     }
 
     private func listAllPIDs() -> [pid_t] {

@@ -15,7 +15,7 @@ struct MainView: View {
             RulesTab()
                 .environmentObject(appState)
                 .tabItem { Label("Rules", systemImage: "slider.horizontal.3") }
-            LogTab(engine: appState.engine)
+            LogTab(groupRuleEngine: appState.groupRuleEngine)
                 .tabItem { Label("Log", systemImage: "list.bullet.rectangle") }
             GeneralTab()
                 .tabItem { Label("General", systemImage: "gearshape") }

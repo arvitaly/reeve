@@ -139,15 +139,30 @@ final class TypesTests: XCTestCase {
     }
 
     func testBuildTreeParentChildRelationship() {
+        // ppid=1 (launchd) not in snapshot → synthetic launchd root wraps parent
         let parent = rec(10, 1)
         let child  = rec(20, 10)
         let snap = SystemSnapshot(processes: [parent, child], sampledAt: .now)
         let roots = snap.buildTree()
         XCTAssertEqual(roots.count, 1)
-        XCTAssertEqual(roots[0].record.pid, 10)
+        XCTAssertEqual(roots[0].record.pid, 1)          // synthetic launchd
+        XCTAssertEqual(roots[0].record.name, "launchd")
         XCTAssertEqual(roots[0].children.count, 1)
-        XCTAssertEqual(roots[0].children[0].record.pid, 20)
+        XCTAssertEqual(roots[0].children[0].record.pid, 10)
         XCTAssertEqual(roots[0].children[0].depth, 1)
+        XCTAssertEqual(roots[0].children[0].children[0].record.pid, 20)
+        XCTAssertEqual(roots[0].children[0].children[0].depth, 2)
+    }
+
+    func testBuildTreeLaunchdChildrenGrouped() {
+        // Multiple launchd children → all under one synthetic launchd root
+        let a = rec(10, 1)
+        let b = rec(20, 1)
+        let snap = SystemSnapshot(processes: [a, b], sampledAt: .now)
+        let roots = snap.buildTree()
+        XCTAssertEqual(roots.count, 1)
+        XCTAssertEqual(roots[0].record.pid, 1)
+        XCTAssertEqual(roots[0].children.count, 2)
     }
 
     func testBuildTreeOrphanBecomesRoot() {

@@ -11,6 +11,7 @@ import ReeveKit
 /// helper processes ("2.1.119") show their bundle name ("Google Chrome Helper").
 final class ProcessIconCache {
     private var iconCache: [String: NSImage] = [:]
+    private var nameCache: [pid_t: String] = [:]
 
     @MainActor
     func icon(for process: ProcessRecord) -> NSImage? {
@@ -31,6 +32,13 @@ final class ProcessIconCache {
     /// 3. ProcessRecord.name (raw proc_name result, up to MAXCOMLEN chars)
     @MainActor
     func displayName(for process: ProcessRecord) -> String {
+        if let cached = nameCache[process.pid] { return cached }
+        let resolved = resolveName(process)
+        nameCache[process.pid] = resolved
+        return resolved
+    }
+
+    private func resolveName(_ process: ProcessRecord) -> String {
         if let name = NSRunningApplication(processIdentifier: process.pid)?.localizedName,
            !name.isEmpty {
             return name

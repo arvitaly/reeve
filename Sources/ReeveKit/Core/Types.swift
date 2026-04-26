@@ -63,6 +63,27 @@ public struct ProcessRecord: Identifiable, Sendable, Hashable {
 public struct SystemSnapshot: Sendable {
     public let processes: [ProcessRecord]
     public let sampledAt: Date
+    /// Physical RAM installed on this machine. Static — set once from ProcessInfo.
+    public let physicalMemory: UInt64
+    /// Kernel-reported used pages (wire + active + compressor) × page size.
+    /// Nil when `host_statistics64` fails — honest absence per CLAUDE.md.
+    public let usedMemory: UInt64?
+    /// Sum of all process CPU percentages.
+    public let totalCPU: Double
+
+    public init(
+        processes: [ProcessRecord],
+        sampledAt: Date,
+        physicalMemory: UInt64 = ProcessInfo.processInfo.physicalMemory,
+        usedMemory: UInt64? = nil,
+        totalCPU: Double = 0
+    ) {
+        self.processes = processes
+        self.sampledAt = sampledAt
+        self.physicalMemory = physicalMemory
+        self.usedMemory = usedMemory
+        self.totalCPU = totalCPU
+    }
 
     /// An empty snapshot used as the initial published state before the first poll.
     public static let empty = SystemSnapshot(processes: [], sampledAt: .now)
@@ -90,15 +111,22 @@ public struct SystemSnapshot: Sendable {
 
     /// Builds the parent-child process tree, returning root nodes (those whose parent is absent
     /// from this snapshot). Roots and siblings are sorted by resident memory descending.
+    ///
+    /// launchd (PID 1) is root-owned and cannot be sampled via proc_pidinfo. To avoid
+    /// promoting all ~300 of its children to top-level roots we insert a synthetic launchd
+    /// node so the tree has one meaningful root rather than hundreds.
     public func buildTree() -> [ProcessTreeNode] {
         let byPID = Dictionary(uniqueKeysWithValues: processes.map { ($0.pid, $0) })
         var childPIDs: [pid_t: [pid_t]] = [:]
         var rootPIDs: [pid_t] = []
+        var launchdChildPIDs: [pid_t] = []
 
         for process in processes {
             let ppid = process.parentPID
             if ppid != 0 && byPID[ppid] != nil {
                 childPIDs[ppid, default: []].append(process.pid)
+            } else if ppid == 1 && byPID[1] == nil {
+                launchdChildPIDs.append(process.pid)
             } else {
                 rootPIDs.append(process.pid)
             }
@@ -113,10 +141,21 @@ public struct SystemSnapshot: Sendable {
             return ProcessTreeNode(record: record, children: children, depth: depth)
         }
 
-        return rootPIDs
+        var roots = rootPIDs
             .compactMap { byPID[$0] }
             .sorted { $0.residentMemory > $1.residentMemory }
             .map { buildNode($0.pid, depth: 0) }
+
+        if !launchdChildPIDs.isEmpty {
+            let synthetic = ProcessRecord(pid: 1, name: "launchd", residentMemory: 0, cpuPercent: 0, parentPID: 0)
+            let kids = launchdChildPIDs
+                .compactMap { byPID[$0] }
+                .sorted { $0.residentMemory > $1.residentMemory }
+                .map { buildNode($0.pid, depth: 1) }
+            roots.insert(ProcessTreeNode(record: synthetic, children: kids, depth: 0), at: 0)
+        }
+
+        return roots
     }
 }
 
