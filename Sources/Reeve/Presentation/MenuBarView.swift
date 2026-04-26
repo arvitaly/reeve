@@ -74,10 +74,13 @@ struct MenuBarView: View {
         }
     }
 
+    private static let searchLimit = 20
+
     private var filteredProcesses: [ProcessRecord] {
-        engine.snapshot.processes
+        Array(engine.snapshot.processes
             .filter { $0.name.localizedCaseInsensitiveContains(searchText) }
             .sorted { $0.residentMemory > $1.residentMemory }
+            .prefix(Self.searchLimit))
     }
 
     private var sortedProcesses: [ProcessRecord] {
@@ -88,9 +91,20 @@ struct MenuBarView: View {
         }
     }
 
+    private var processCountLabel: String {
+        if isSearching {
+            let total = engine.snapshot.processes.filter {
+                $0.name.localizedCaseInsensitiveContains(searchText)
+            }.count
+            let shown = min(total, Self.searchLimit)
+            return total > Self.searchLimit ? "\(shown) of \(total)" : "\(total)"
+        }
+        return "\(engine.snapshot.processes.count)"
+    }
+
     private var footer: some View {
         HStack(spacing: 8) {
-            Text("\(engine.snapshot.processes.count)")
+            Text(processCountLabel)
                 .font(.caption.monospacedDigit())
                 .foregroundStyle(.secondary)
             Picker("Sort", selection: $sortMode) {

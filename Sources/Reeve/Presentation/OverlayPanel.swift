@@ -47,7 +47,7 @@ final class OverlayController: NSObject, ObservableObject, NSWindowDelegate {
 
     private func makePanel() -> NSPanel {
         let p = NSPanel(
-            contentRect: NSRect(x: 0, y: 0, width: 240, height: 10),
+            contentRect: NSRect(x: 0, y: 0, width: 240, height: 200),
             styleMask: [.nonactivatingPanel, .fullSizeContentView, .titled, .closable],
             backing: .buffered,
             defer: false
