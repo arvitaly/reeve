@@ -16,8 +16,8 @@ struct InlineActionBar: View {
                 chipButton("Resume", kind: .resume)
             } else {
                 chipButton("Suspend", kind: .suspend)
+                chipButton("Lower Priority", kind: .renice(10))
             }
-            chipButton("Lower Priority", kind: .renice(10))
             Spacer()
             Button(action: onAddRule) {
                 Label("Rule", systemImage: "plus.circle")

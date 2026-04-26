@@ -34,7 +34,7 @@ struct PressureBar: View {
             HStack {
                 Text(memLabel)
                     .font(RVFont.mono(size: 10))
-                    .foregroundStyle(Color.rvTextFaint)
+                    .foregroundStyle(severity != .normal ? severity.textColor : Color.rvTextFaint)
                 Spacer()
                 Text(cpuLabel)
                     .font(RVFont.mono(size: 10))
