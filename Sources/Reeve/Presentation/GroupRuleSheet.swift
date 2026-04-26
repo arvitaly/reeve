@@ -25,7 +25,13 @@ struct GroupRuleSheet: View {
     }
 
     static func suggestedCap(currentGB: Double) -> Double {
-        max(0.25, floor(currentGB * 0.75 / 0.5) * 0.5)
+        if currentGB > 3 {
+            return max(0.5, floor(currentGB * 0.75 / 0.5) * 0.5)
+        } else if currentGB > 1 {
+            return max(0.5, floor(currentGB * 0.80 / 0.5) * 0.5)
+        } else {
+            return max(0.25, floor(currentGB * 0.90 / 0.25) * 0.25)
+        }
     }
 
     private var currentGB: Double { Double(group.totalMemory) / 1_073_741_824 }
@@ -58,7 +64,7 @@ struct GroupRuleSheet: View {
                     }
                     Text("→").font(.caption).foregroundStyle(.secondary)
                     Picker("", selection: $action) {
-                        ForEach(GroupRuleSpec.ActionKind.allCases, id: \.self) {
+                        ForEach([GroupRuleSpec.ActionKind.reniceDown, .suspend], id: \.self) {
                             Text($0.displayName).tag($0)
                         }
                     }

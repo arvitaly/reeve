@@ -300,8 +300,8 @@ struct ApplicationGroupSheet: View {
             isReversible = true
             effectDesc = "Pauses all \(count) processes; memory remains reserved"
         case .resume:
-            isReversible = false
-            effectDesc = "Resumes all \(count) processes"
+            isReversible = true
+            effectDesc = "Resumes all \(count) paused processes; re-suspend at any time"
         case .renice(let v):
             isReversible = true
             effectDesc = "Lowers scheduling priority (nice +\(v)) for all \(count) processes"

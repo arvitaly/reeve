@@ -121,7 +121,7 @@ struct MenuBarView: View {
             }
             PressureBar(snapshot: engine.snapshot)
             HStack(spacing: 6) {
-                TextField("Search", text: $searchText)
+                TextField(showProcesses ? "Search processes" : "Search apps", text: $searchText)
                     .textFieldStyle(.roundedBorder)
                     .font(.caption)
                 Button {
@@ -188,7 +188,7 @@ struct MenuBarView: View {
 
     @ViewBuilder
     private var content: some View {
-        if showProcesses || isSearching {
+        if showProcesses {
             processContent
         } else {
             appsContent
@@ -202,10 +202,18 @@ struct MenuBarView: View {
 
     private var appsContent: some View {
         let (apps, system) = buildApplicationGroups(snapshot: engine.snapshot)
-        let sorted = sortedGroups(apps)
+        var sorted = sortedGroups(apps)
+        let query = searchText
+        if !query.isEmpty {
+            sorted = sorted.filter { $0.displayName.localizedCaseInsensitiveContains(query) }
+        }
         return ScrollView {
             LazyVStack(spacing: 0) {
-                if sorted.isEmpty {
+                if sorted.isEmpty && !query.isEmpty {
+                    Text("No apps matching \u{201C}\(query)\u{201D}")
+                        .font(.caption).foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity).padding(.vertical, 12)
+                } else if sorted.isEmpty {
                     Text("Sampling…")
                         .font(.caption).foregroundStyle(.secondary)
                         .frame(maxWidth: .infinity).padding(.vertical, 12)
@@ -271,9 +279,17 @@ struct MenuBarView: View {
                                     }
                                 },
                                 onChipAction: { kind in
-                                    pendingRuleGroup = nil
-                                    pendingChipGroup = group
-                                    pendingChipKind = kind
+                                    if case .resume = kind {
+                                        let procs = group.processes
+                                        Task {
+                                            for p in procs { try? await Action(target: p, kind: .resume).execute() }
+                                            selectedGroupID = nil
+                                        }
+                                    } else {
+                                        pendingRuleGroup = nil
+                                        pendingChipGroup = group
+                                        pendingChipKind = kind
+                                    }
                                 },
                                 onAddRule: {
                                     pendingChipGroup = nil
@@ -290,7 +306,7 @@ struct MenuBarView: View {
                             }
                         }
                     }
-                    if !system.isEmpty {
+                    if !system.isEmpty && query.isEmpty {
                         systemSection(system)
                     }
                 }

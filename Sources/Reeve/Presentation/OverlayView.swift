@@ -138,7 +138,7 @@ struct OverlayView: View {
             PressureBar(snapshot: engine.snapshot)
             if widgetMode == .expanded {
                 HStack(spacing: 6) {
-                    TextField("Search", text: $searchText)
+                    TextField(showProcesses ? "Search processes" : "Search apps", text: $searchText)
                         .textFieldStyle(.roundedBorder)
                         .font(.caption)
                     Button {
@@ -162,11 +162,17 @@ struct OverlayView: View {
 
     private func modeButton(_ mode: WidgetMode, systemImage: String) -> some View {
         Button { widgetMode = mode } label: {
-            Image(systemName: systemImage).font(.system(size: 10, weight: .medium))
+            Image(systemName: systemImage)
+                .font(.system(size: 10, weight: .medium))
+                .padding(.horizontal, 5)
+                .padding(.vertical, 3)
+                .background(widgetMode == mode ? Color.accentColor.opacity(0.15) : Color.clear)
+                .clipShape(RoundedRectangle(cornerRadius: 4))
         }
         .buttonStyle(.plain)
         .foregroundStyle(widgetMode == mode ? Color.accentColor : .secondary)
         .help(mode.helpText)
+        .animation(.easeOut(duration: 0.12), value: widgetMode)
     }
 
     // MARK: Column headers
@@ -215,7 +221,7 @@ struct OverlayView: View {
     private var content: some View {
         switch widgetMode {
         case .expanded:
-            if showProcesses || isSearching { processContent } else { appsContent }
+            if showProcesses { processContent } else { appsContent }
         case .compact:
             compactContent
         case .pinned:
@@ -229,14 +235,24 @@ struct OverlayView: View {
 
     private var appsContent: some View {
         let (apps, system) = buildApplicationGroups(snapshot: engine.snapshot)
-        let sorted = sortedGroups(apps)
+        var sorted = sortedGroups(apps)
+        let query = searchText
+        if !query.isEmpty {
+            sorted = sorted.filter { $0.displayName.localizedCaseInsensitiveContains(query) }
+        }
         return ScrollView {
             LazyVStack(spacing: 0) {
-                ForEach(sorted) { group in
-                    groupBlock(group: group)
-                }
-                if !system.isEmpty {
-                    systemSection(system)
+                if sorted.isEmpty && !query.isEmpty {
+                    Text("No apps matching \u{201C}\(query)\u{201D}")
+                        .font(.caption).foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity).padding(.vertical, 12)
+                } else {
+                    ForEach(sorted) { group in
+                        groupBlock(group: group)
+                    }
+                    if !system.isEmpty && query.isEmpty {
+                        systemSection(system)
+                    }
                 }
             }
             .frame(maxWidth: .infinity)
@@ -249,8 +265,14 @@ struct OverlayView: View {
         let (apps, _) = buildApplicationGroups(snapshot: engine.snapshot)
         let top = Array(apps.sorted { $0.totalMemory > $1.totalMemory }.prefix(5))
         return VStack(spacing: 0) {
-            ForEach(top) { group in
-                groupBlock(group: group)
+            if top.isEmpty {
+                Text("Sampling…")
+                    .font(.caption).foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity).padding(.vertical, 14)
+            } else {
+                ForEach(top) { group in
+                    groupBlock(group: group)
+                }
             }
         }
     }
@@ -536,9 +558,17 @@ struct OverlayView: View {
                     }
                 },
                 onChipAction: { kind in
-                    pendingRuleGroup = nil
-                    pendingChipGroup = group
-                    pendingChipKind = kind
+                    if case .resume = kind {
+                        let procs = group.processes
+                        Task {
+                            for p in procs { try? await Action(target: p, kind: .resume).execute() }
+                            selectedGroupID = nil
+                        }
+                    } else {
+                        pendingRuleGroup = nil
+                        pendingChipGroup = group
+                        pendingChipKind = kind
+                    }
                 },
                 onAddRule: {
                     pendingChipGroup = nil
@@ -646,7 +676,7 @@ struct OverlayView: View {
             Text("\(apps.count) apps · \(procs) procs")
                 .font(.caption.monospacedDigit())
                 .foregroundStyle(.secondary)
-            if widgetMode == .expanded && !showProcesses && !isSearching {
+            if widgetMode == .expanded && !showProcesses {
                 Picker("Sort", selection: $sortMode) {
                     ForEach(SortMode.allCases, id: \.self) { Text($0.rawValue).tag($0) }
                 }

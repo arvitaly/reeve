@@ -137,8 +137,8 @@ public struct Action: Sendable {
         case .resume:
             return PreflightResult(
                 description: "Resume \(target.name) (PID \(target.pid)) with SIGCONT",
-                isReversible: false,
-                effect: .known("Process resumes from point of suspension"),
+                isReversible: true,
+                effect: .known("Process resumes from point of suspension; re-suspend at any time"),
                 warnings: []
             )
         }
