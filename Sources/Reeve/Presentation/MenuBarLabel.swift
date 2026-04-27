@@ -23,7 +23,7 @@ private struct ReeveIcon: View {
     var body: some View {
         Canvas { ctx, sz in
             let w = sz.width, h = sz.height
-            let sw = max(1.0, w * 0.055)
+            let sw = max(1.5, w * 0.09)
 
             var lb = Path()
             lb.move(to:    CGPoint(x: w * 0.273, y: h * 0.273))
@@ -116,7 +116,7 @@ struct MenuBarLabel: View {
 
     private var normalLabel: some View {
         HStack(spacing: 4) {
-            ReeveIcon(color: Color.rvDotNormal)
+            ReeveIcon(color: .primary.opacity(0.6))
             metricText
         }
     }

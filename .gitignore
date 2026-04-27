@@ -10,3 +10,4 @@ DerivedData/
 *.xcodeproj/xcuserdata/
 build/
 /*.app
+/*.zip

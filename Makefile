@@ -20,10 +20,10 @@ ZIPFILE = Reeve-$(VERSION).zip
 .PHONY: build run release sign notarize clean
 
 build:
-	swift build --target Reeve -c $(CONFIG)
+	swift build -c $(CONFIG)
 	mkdir -p $(BUNDLE)/Contents/MacOS $(BUNDLE)/Contents/Resources
 	cp .build/$(ARCH)-apple-macosx/$(CONFIG)/Reeve $(BINARY)
-	cp Sources/Reeve/Resources/AppIcon.icns $(BUNDLE)/Contents/Resources/AppIcon.icns
+	cp Assets/AppIcon.icns $(BUNDLE)/Contents/Resources/AppIcon.icns
 	@$(MAKE) --no-print-directory _plist
 
 _plist:
