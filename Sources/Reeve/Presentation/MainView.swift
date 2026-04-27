@@ -14,6 +14,8 @@ struct MainView: View {
                 .tabItem { Label("Processes", systemImage: "cpu") }
             AppsTab(engine: appState.engine)
                 .tabItem { Label("Apps", systemImage: "app.badge") }
+            DiskTab()
+                .tabItem { Label("Disk", systemImage: "internaldrive") }
             RulesTab()
                 .environmentObject(appState)
                 .tabItem { Label("Rules", systemImage: "slider.horizontal.3") }
@@ -301,7 +303,9 @@ struct AppsTab: View {
 
 struct GeneralTab: View {
     @AppStorage("overlayShowOnLaunch") private var overlayShowOnLaunch = false
-    @AppStorage("menuBarMetric") private var menuBarMetric: MenuBarMetric = .cpu
+    @AppStorage("menuBarShowCPU")    private var menuBarShowCPU:    Bool = true
+    @AppStorage("menuBarShowMemory") private var menuBarShowMemory: Bool = false
+    @AppStorage("menuBarShowDisk")   private var menuBarShowDisk:   Bool = false
     @State private var launchAtLogin = false
 
     var body: some View {
@@ -320,12 +324,9 @@ struct GeneralTab: View {
             }
 
             Section("Menu Bar") {
-                Picker("Show metric", selection: $menuBarMetric) {
-                    ForEach(MenuBarMetric.allCases, id: \.self) { m in
-                        Text(m.label).tag(m)
-                    }
-                }
-                .pickerStyle(.segmented)
+                Toggle("Show CPU %", isOn: $menuBarShowCPU)
+                Toggle("Show Memory", isOn: $menuBarShowMemory)
+                Toggle("Show Disk write (when > 1 MB/s)", isOn: $menuBarShowDisk)
             }
 
             Section("Monitoring") {

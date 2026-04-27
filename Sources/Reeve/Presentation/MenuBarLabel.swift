@@ -1,19 +1,6 @@
 import SwiftUI
 import ReeveKit
 
-enum MenuBarMetric: String, CaseIterable {
-    case cpu    = "cpu"
-    case memory = "memory"
-    case none   = "none"
-
-    var label: String {
-        switch self {
-        case .cpu:    return "CPU %"
-        case .memory: return "Memory"
-        case .none:   return "None"
-        }
-    }
-}
 
 // Template NSImage rendered via CoreGraphics — isTemplate=true lets macOS
 // composite it correctly for any menu bar appearance (light/dark/tinted).
@@ -65,7 +52,9 @@ private let reeveTemplateImage = makeReeveTemplateImage()
 struct MenuBarLabel: View {
     @ObservedObject var engine: MonitoringEngine
     @EnvironmentObject var appState: AppState
-    @AppStorage("menuBarMetric") private var metric: MenuBarMetric = .cpu
+    @AppStorage("menuBarShowCPU")    private var showCPU:    Bool = true
+    @AppStorage("menuBarShowMemory") private var showMemory: Bool = false
+    @AppStorage("menuBarShowDisk")   private var showDisk:   Bool = false
 
     private enum LabelState {
         case flash
@@ -100,20 +89,17 @@ struct MenuBarLabel: View {
     }
 
     @ViewBuilder private var metricText: some View {
-        switch metric {
-        case .cpu:
-            let pct = engine.snapshot.totalCPU
-            if pct >= 1.0 {
-                Text(String(format: "%.0f%%", pct))
-                    .font(.caption.monospacedDigit())
-            }
-        case .memory:
-            if let used = engine.snapshot.usedMemory {
-                Text(shortMem(used))
-                    .font(.caption.monospacedDigit())
-            }
-        case .none:
-            EmptyView()
+        let cpu = engine.snapshot.totalCPU
+        let mem = engine.snapshot.usedMemory
+        let diskWrite = engine.snapshot.processes.reduce(0) { $0 + $1.diskWriteRate }
+        if showCPU && cpu >= 1 {
+            Text(String(format: "%.0f%%", cpu)).font(.caption.monospacedDigit())
+        }
+        if showMemory, let m = mem {
+            Text(shortMem(m)).font(.caption.monospacedDigit())
+        }
+        if showDisk && diskWrite >= 1_048_576 {
+            Text("↑" + shortMem(diskWrite) + "/s").font(.caption.monospacedDigit())
         }
     }
 
