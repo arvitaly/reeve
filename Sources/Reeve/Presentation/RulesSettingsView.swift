@@ -11,6 +11,9 @@ struct RulesSettingsView: View {
             RulesTab()
                 .environmentObject(appState)
                 .tabItem { Label("Rules", systemImage: "slider.horizontal.3") }
+            PressureTab()
+                .environmentObject(appState)
+                .tabItem { Label("Pressure", systemImage: "memorychip") }
             LogTab(groupRuleEngine: appState.groupRuleEngine)
                 .tabItem { Label("Log", systemImage: "list.bullet.rectangle") }
             GeneralTab()
@@ -209,6 +212,138 @@ private struct GroupRuleSpecRow: View {
             .buttonStyle(.plain)
         }
         .padding(.vertical, 2)
+    }
+}
+
+// MARK: - Pressure tab
+
+struct PressureTab: View {
+    @EnvironmentObject var appState: AppState
+    @State private var newName = ""
+
+    private var physicalGB: Int {
+        Int(appState.engine.snapshot.physicalMemory / 1_073_741_824)
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Form {
+                Section {
+                    Toggle("Enable memory pressure response", isOn: $appState.pressurePolicy.isEnabled)
+                }
+
+                if appState.pressurePolicy.isEnabled {
+                    Section("Threshold") {
+                        HStack {
+                            Text("Kill when system memory exceeds")
+                            Spacer()
+                            TextField("", value: $appState.pressurePolicy.thresholdGB, format: .number)
+                                .frame(width: 64)
+                                .multilineTextAlignment(.trailing)
+                            Text("GB").foregroundStyle(.secondary)
+                        }
+                        HStack {
+                            Text("Physical RAM installed")
+                            Spacer()
+                            Text("\(physicalGB) GB")
+                                .foregroundStyle(.secondary)
+                                .monospacedDigit()
+                        }
+                        HStack {
+                            Text("Cooldown between kills")
+                            Spacer()
+                            TextField("", value: $appState.pressurePolicy.cooldownSeconds, format: .number)
+                                .frame(width: 64)
+                                .multilineTextAlignment(.trailing)
+                            Text("s").foregroundStyle(.secondary)
+                        }
+                    }
+
+                    Section("Kill behavior") {
+                        Toggle("Warn before kill (SIGTERM first)", isOn: $appState.pressurePolicy.warnBeforeKill)
+                        if appState.pressurePolicy.warnBeforeKill {
+                            HStack {
+                                Text("Grace period")
+                                Spacer()
+                                TextField("", value: $appState.pressurePolicy.graceSeconds, format: .number)
+                                    .frame(width: 64)
+                                    .multilineTextAlignment(.trailing)
+                                Text("s").foregroundStyle(.secondary)
+                            }
+                            Text("SIGTERM is sent first. If the app is still alive after the grace period, SIGKILL follows.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+            }
+            .formStyle(.grouped)
+
+            if appState.pressurePolicy.isEnabled {
+                Divider()
+                killListSection
+            }
+        }
+    }
+
+    private var killListSection: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Text("Kill list — priority order")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Text("Force Kill · irreversible")
+                    .font(.caption)
+                    .foregroundStyle(.red)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+
+            Divider()
+
+            if appState.pressurePolicy.killList.isEmpty {
+                Text("No apps in kill list")
+                    .foregroundStyle(.tertiary)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                List {
+                    ForEach(appState.pressurePolicy.killList, id: \.self) { name in
+                        HStack {
+                            Text(name)
+                            Spacer()
+                            Button {
+                                appState.pressurePolicy.killList.removeAll { $0 == name }
+                            } label: {
+                                Image(systemName: "trash").foregroundStyle(.red)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .onMove { appState.pressurePolicy.killList.move(fromOffsets: $0, toOffset: $1) }
+                }
+                .listStyle(.inset)
+            }
+
+            Divider()
+
+            HStack {
+                TextField("App name (e.g. Google Chrome)", text: $newName)
+                    .textFieldStyle(.roundedBorder)
+                    .onSubmit { addName() }
+                Button("Add", action: addName)
+                    .disabled(newName.trimmingCharacters(in: .whitespaces).isEmpty)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+        }
+    }
+
+    private func addName() {
+        let name = newName.trimmingCharacters(in: .whitespaces)
+        guard !name.isEmpty, !appState.pressurePolicy.killList.contains(name) else { return }
+        appState.pressurePolicy.killList.append(name)
+        newName = ""
     }
 }
 

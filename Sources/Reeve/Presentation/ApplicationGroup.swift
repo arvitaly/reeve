@@ -1,4 +1,5 @@
 import AppKit
+import Darwin
 import SwiftUI
 import ReeveKit
 
@@ -31,11 +32,89 @@ struct ApplicationGroup: Identifiable {
     var formattedCPU: String { String(format: "%.1f%%", totalCPU) }
 }
 
+// Terminal apps are split per-tab. Terminal.app spawns shells via root-owned `login`
+// processes that are invisible to the sampler (PROC_PIDTASKINFO fails with EPERM).
+// We recover the link by calling PROC_PIDT_SHORTBSDINFO on the phantom parent —
+// that flavor is readable without elevated privileges.
+private let terminalBundleIDs: Set<String> = [
+    "com.apple.Terminal",
+    "com.googlecode.iterm2",
+    "dev.warp.Warp-Stable",
+    "dev.warp.Warp",
+    "io.alacritty",
+    "net.kovidgoyal.kitty",
+    "com.github.wez.wezterm",
+    "co.zeit.hyper",
+]
+
+private let shellNames: Set<String> = ["zsh", "bash", "fish", "sh", "dash", "tcsh", "csh"]
+
+// Returns the parent PID of `pid` using PROC_PIDT_SHORTBSDINFO (no root required).
+// Returns 0 on failure.
+private func parentPIDOf(_ pid: pid_t) -> pid_t {
+    var info = proc_bsdshortinfo()
+    let size = Int32(MemoryLayout<proc_bsdshortinfo>.size)
+    guard proc_pidinfo(pid, PROC_PIDT_SHORTBSDINFO, 0, &info, size) == size else { return 0 }
+    return pid_t(info.pbsi_ppid)
+}
+
+private func tabGroupName(terminalName: String, shell: ProcessTreeNode) -> String {
+    let top = shell.flattened()
+        .filter { !shellNames.contains($0.record.name.lowercased()) }
+        .max(by: { $0.record.residentMemory < $1.record.residentMemory })
+    return "\(terminalName): \(top?.record.name ?? shell.record.name)"
+}
+
+// Finds tab groups for a terminal app by resolving phantom parent chains.
+// Each root-owned intermediary (login) is a phantom: we look up its parent PID to
+// confirm it belongs to this terminal, then group by that phantom PID (= one tab).
+private func resolveTerminalTabs(
+    terminalPID: pid_t,
+    appName: String,
+    icon: NSImage?,
+    snapshot: SystemSnapshot,
+    nodeByPID: [pid_t: ProcessTreeNode],
+    claimed: inout Set<pid_t>
+) -> [ApplicationGroup] {
+    var phantomToGrandparent: [pid_t: pid_t] = [:]
+    var tabsByPhantom: [pid_t: [ProcessTreeNode]] = [:]
+
+    for process in snapshot.processes {
+        guard let node = nodeByPID[process.pid],
+              nodeByPID[process.parentPID] == nil,  // parent absent from snapshot
+              process.parentPID > 1 else { continue }
+        let phantom = process.parentPID
+        if phantomToGrandparent[phantom] == nil {
+            phantomToGrandparent[phantom] = parentPIDOf(phantom)
+        }
+        guard phantomToGrandparent[phantom] == terminalPID else { continue }
+        tabsByPhantom[phantom, default: []].append(node)
+    }
+
+    var groups: [ApplicationGroup] = []
+    for (_, nodes) in tabsByPhantom.sorted(by: { $0.key < $1.key }) {
+        let combined = nodes.flatMap { $0.flattened().map { $0.record } }
+        let pids = Set(combined.map { $0.pid })
+        guard claimed.isDisjoint(with: pids) else { continue }
+        claimed.formUnion(pids)
+        let mainNode = nodes.max(by: { $0.record.residentMemory < $1.record.residentMemory }) ?? nodes[0]
+        groups.append(ApplicationGroup(
+            id: mainNode.record.pid,
+            displayName: tabGroupName(terminalName: appName, shell: mainNode),
+            icon: icon,
+            processes: combined
+        ))
+    }
+    return groups
+}
+
 /// Groups snapshot processes by NSRunningApplication ownership.
 ///
 /// Each NSRunningApplication anchors a subtree in the process tree — all descendants
-/// belong to that application group. Processes that don't fall under any running
-/// application are returned separately as system processes.
+/// belong to that application group. Terminal emulators are split per-tab via phantom
+/// parent resolution (root-owned intermediary processes like `login` are resolved
+/// through PROC_PIDT_SHORTBSDINFO). Processes not claimed by any running application
+/// are returned separately as system processes.
 func buildApplicationGroups(snapshot: SystemSnapshot) -> (apps: [ApplicationGroup], system: [ProcessRecord]) {
     let tree = snapshot.buildTree()
     var nodeByPID: [pid_t: ProcessTreeNode] = [:]
@@ -49,6 +128,19 @@ func buildApplicationGroups(snapshot: SystemSnapshot) -> (apps: [ApplicationGrou
     for app in NSWorkspace.shared.runningApplications {
         let pid = app.processIdentifier
         guard pid > 0, let rootNode = nodeByPID[pid] else { continue }
+
+        if terminalBundleIDs.contains(app.bundleIdentifier ?? "") {
+            let appName = app.localizedName ?? rootNode.record.name
+            let tabs = resolveTerminalTabs(
+                terminalPID: pid, appName: appName, icon: app.icon,
+                snapshot: snapshot, nodeByPID: nodeByPID, claimed: &claimed
+            )
+            if !tabs.isEmpty {
+                apps.append(contentsOf: tabs)
+                continue  // terminal app process itself stays unclaimed → system
+            }
+        }
+
         let procs = rootNode.flattened().map { $0.record }
         let pids = Set(procs.map { $0.pid })
         guard claimed.isDisjoint(with: pids) else { continue }

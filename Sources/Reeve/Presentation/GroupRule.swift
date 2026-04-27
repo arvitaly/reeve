@@ -1,7 +1,21 @@
 import AppKit
 import Combine
+import Darwin
 import Foundation
 import ReeveKit
+
+// MARK: - Memory pressure policy
+
+/// A single global policy: when system memory exceeds a threshold,
+/// kill apps from the ordered list one at a time with a cooldown between kills.
+struct MemoryPressurePolicy: Codable {
+    var isEnabled: Bool = false
+    var thresholdGB: Double = 14.0
+    var killList: [String] = []      // case-insensitive app name patterns, priority order
+    var cooldownSeconds: Double = 30
+    var warnBeforeKill: Bool = false  // SIGTERM first, SIGKILL after graceSeconds if still alive
+    var graceSeconds: Double = 10
+}
 
 // MARK: - Spec
 
@@ -103,7 +117,9 @@ final class GroupRuleEngine: ObservableObject {
     @Published private(set) var systemCPUHistory: [Double] = []             // percent, 30-sample rolling
 
     var specs: [GroupRuleSpec] = []
+    var pressurePolicy = MemoryPressurePolicy()
     private var cooldowns: [String: ContinuousClock.Instant] = [:]
+    private var pressureCooldownUntil: ContinuousClock.Instant?
     private var cancellable: AnyCancellable?
 
     static let historyCapacity = 30
@@ -137,6 +153,48 @@ final class GroupRuleEngine: ObservableObject {
                     processCount: processes.count
                 ))
             }
+        }
+        evaluatePressurePolicy(groups: groups, snapshot: snapshot, now: now)
+    }
+
+    private func evaluatePressurePolicy(groups: [ApplicationGroup], snapshot: SystemSnapshot, now: ContinuousClock.Instant) {
+        guard pressurePolicy.isEnabled,
+              !pressurePolicy.killList.isEmpty,
+              let usedMemory = snapshot.usedMemory else { return }
+        let usedGB = Double(usedMemory) / 1_073_741_824
+        guard usedGB > pressurePolicy.thresholdGB else {
+            pressureCooldownUntil = nil
+            return
+        }
+        if let until = pressureCooldownUntil, now < until { return }
+        for pattern in pressurePolicy.killList {
+            guard let group = groups.first(where: {
+                $0.displayName.localizedCaseInsensitiveContains(pattern)
+            }) else { continue }
+            let processes = group.processes
+            let pids = processes.map { $0.pid }
+            let warn = pressurePolicy.warnBeforeKill
+            let grace = pressurePolicy.graceSeconds
+            Task.detached {
+                if warn {
+                    for pid in pids { Darwin.kill(pid, SIGTERM) }
+                    try? await Task.sleep(for: .seconds(grace))
+                    for pid in pids where Darwin.kill(pid, 0) == 0 { Darwin.kill(pid, SIGKILL) }
+                } else {
+                    for pid in pids { Darwin.kill(pid, SIGKILL) }
+                }
+            }
+            pressureCooldownUntil = now + .seconds(pressurePolicy.cooldownSeconds)
+            let actionName = warn
+                ? String(format: "Terminate (%.0fs grace)", grace)
+                : "Force Kill"
+            actionLog.append(GroupActionLogEntry(
+                appName: group.displayName,
+                conditionDescription: String(format: "System %.1f GB > %.1f GB", usedGB, pressurePolicy.thresholdGB),
+                actionName: actionName,
+                processCount: processes.count
+            ))
+            return
         }
     }
 

@@ -22,6 +22,13 @@ final class AppState: ObservableObject {
         }
     }
 
+    @Published var pressurePolicy: MemoryPressurePolicy = MemoryPressurePolicy() {
+        didSet {
+            persistPressurePolicy()
+            groupRuleEngine.pressurePolicy = pressurePolicy
+        }
+    }
+
     private var groupLogCount = 0
     private var cancellables = Set<AnyCancellable>()
 
@@ -35,6 +42,9 @@ final class AppState: ObservableObject {
         let specs = Self.loadGroupSpecs()
         self.groupRuleSpecs = specs
         groupRuleEngine.specs = specs
+        let policy = Self.loadPressurePolicy()
+        self.pressurePolicy = policy
+        groupRuleEngine.pressurePolicy = policy
         groupRuleEngine.connect(to: engine)
         overlay.configure(appState: self)  // must precede any show() call
         requestNotificationAuthorization()
@@ -105,6 +115,19 @@ final class AppState: ObservableObject {
             let specs = try? JSONDecoder().decode([GroupRuleSpec].self, from: data)
         else { return [] }
         return specs
+    }
+
+    private func persistPressurePolicy() {
+        guard let data = try? JSONEncoder().encode(pressurePolicy) else { return }
+        UserDefaults.standard.set(data, forKey: "memoryPressurePolicy")
+    }
+
+    private static func loadPressurePolicy() -> MemoryPressurePolicy {
+        guard
+            let data = UserDefaults.standard.data(forKey: "memoryPressurePolicy"),
+            let policy = try? JSONDecoder().decode(MemoryPressurePolicy.self, from: data)
+        else { return MemoryPressurePolicy() }
+        return policy
     }
 }
 
