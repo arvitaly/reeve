@@ -120,6 +120,8 @@ final class GroupRuleEngine: ObservableObject {
     var pressurePolicy = MemoryPressurePolicy()
     private var cooldowns: [String: ContinuousClock.Instant] = [:]
     private var pressureCooldownUntil: ContinuousClock.Instant?
+    // Group displayNames already killed this pressure episode; reset when memory drops.
+    private var pressureKilledGroups: Set<String> = []
     private var cancellable: AnyCancellable?
 
     static let historyCapacity = 30
@@ -164,15 +166,16 @@ final class GroupRuleEngine: ObservableObject {
         let usedGB = Double(usedMemory) / 1_073_741_824
         guard usedGB > pressurePolicy.thresholdGB else {
             pressureCooldownUntil = nil
+            pressureKilledGroups = []
             return
         }
         if let until = pressureCooldownUntil, now < until { return }
         for pattern in pressurePolicy.killList {
             guard let group = groups.first(where: {
-                $0.displayName.localizedCaseInsensitiveContains(pattern)
+                $0.displayName.localizedCaseInsensitiveContains(pattern) &&
+                !pressureKilledGroups.contains($0.displayName)
             }) else { continue }
-            let processes = group.processes
-            let pids = processes.map { $0.pid }
+            let pids = group.processes.map { $0.pid }
             let warn = pressurePolicy.warnBeforeKill
             let grace = pressurePolicy.graceSeconds
             Task.detached {
@@ -184,6 +187,7 @@ final class GroupRuleEngine: ObservableObject {
                     for pid in pids { Darwin.kill(pid, SIGKILL) }
                 }
             }
+            pressureKilledGroups.insert(group.displayName)
             pressureCooldownUntil = now + .seconds(pressurePolicy.cooldownSeconds)
             let actionName = warn
                 ? String(format: "Terminate (%.0fs grace)", grace)
@@ -192,7 +196,7 @@ final class GroupRuleEngine: ObservableObject {
                 appName: group.displayName,
                 conditionDescription: String(format: "System %.1f GB > %.1f GB", usedGB, pressurePolicy.thresholdGB),
                 actionName: actionName,
-                processCount: processes.count
+                processCount: group.processes.count
             ))
             return
         }
