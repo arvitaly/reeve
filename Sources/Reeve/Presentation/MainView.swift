@@ -17,6 +17,9 @@ struct MainView: View {
             RulesTab()
                 .environmentObject(appState)
                 .tabItem { Label("Rules", systemImage: "slider.horizontal.3") }
+            PressureTab()
+                .environmentObject(appState)
+                .tabItem { Label("Pressure", systemImage: "memorychip") }
             LogTab(groupRuleEngine: appState.groupRuleEngine)
                 .tabItem { Label("Log", systemImage: "list.bullet.rectangle") }
             GeneralTab()
