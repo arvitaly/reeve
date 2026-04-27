@@ -309,7 +309,7 @@ struct MenuBarView: View {
                 }
             }
         }
-        .frame(maxHeight: Self.listMaxHeight)
+        .frame(minHeight: 200, maxHeight: Self.listMaxHeight)
     }
 
     private func sortedGroups(_ groups: [ApplicationGroup]) -> [ApplicationGroup] {
@@ -381,7 +381,7 @@ struct MenuBarView: View {
                 }
             }
         }
-        .frame(maxHeight: Self.listMaxHeight)
+        .frame(minHeight: 200, maxHeight: Self.listMaxHeight)
     }
 
     @ViewBuilder
