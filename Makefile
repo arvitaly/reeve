@@ -2,7 +2,7 @@ BUNDLE     = Reeve.app
 BINARY     = $(BUNDLE)/Contents/MacOS/Reeve
 INFOPLIST  = $(BUNDLE)/Contents/Info.plist
 CONFIG    ?= debug
-VERSION   ?= 0.1.7
+VERSION   ?= 0.1.8
 ARCH      := $(shell uname -m)
 
 # Filled in by the developer; leave blank to skip codesigning.
@@ -54,8 +54,26 @@ release:
 	  $(MAKE) sign VERSION=$(VERSION); \
 	fi
 	ditto -c -k --keepParent $(BUNDLE) $(ZIPFILE)
-	@echo ""; shasum -a 256 $(ZIPFILE)
-	@echo "\nUpdate Casks/reeve.rb sha256 with the value above."
+	@SHA=$$(shasum -a 256 $(ZIPFILE) | awk '{print $$1}'); \
+	  echo "\n$$SHA  $(ZIPFILE)"; \
+	  sed -i '' "s/version \"[^\"]*\"/version \"$(VERSION)\"/" Casks/reeve.rb; \
+	  sed -i '' "s/sha256 \"[^\"]*\"/sha256 \"$$SHA\"/" Casks/reeve.rb; \
+	  echo "\nCasks/reeve.rb updated automatically."
+
+publish: release
+	@git add Casks/reeve.rb Makefile
+	@git commit -m "Release v$(VERSION)"
+	@git tag v$(VERSION)
+	@git push && git push --tags
+	@gh release create v$(VERSION) $(ZIPFILE) --title "v$(VERSION)" --latest
+	@CONTENT=$$(base64 < Casks/reeve.rb | tr -d '\n'); \
+	  FILE_SHA=$$(gh api repos/arvitaly/homebrew-reeve/contents/Casks/reeve.rb --jq '.sha'); \
+	  gh api --method PUT repos/arvitaly/homebrew-reeve/contents/Casks/reeve.rb \
+	    --field message="Update cask to v$(VERSION)" \
+	    --field content="$$CONTENT" \
+	    --field sha="$$FILE_SHA" \
+	    --jq '.commit.sha'
+	@echo "\nv$(VERSION) published to GitHub and homebrew-reeve tap."
 
 sign:
 	codesign --deep --force --options runtime \
