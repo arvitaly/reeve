@@ -19,7 +19,8 @@ let package = Package(
         .executableTarget(
             name: "Reeve",
             dependencies: ["ReeveKit"],
-            path: "Sources/Reeve"
+            path: "Sources/Reeve",
+            resources: [.copy("Resources/AppIcon.icns")]
         ),
         .testTarget(
             name: "ReeveKitTests",

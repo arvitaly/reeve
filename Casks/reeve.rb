@@ -13,6 +13,13 @@ cask "reeve" do
 
   app "Reeve.app"
 
+  caveat <<~EOS
+    Reeve is not notarized. On first launch, macOS will block it.
+    To allow it, run:
+      xattr -dr com.apple.quarantine /Applications/Reeve.app
+    Or right-click Reeve.app → Open → Open.
+  EOS
+
   zap trash: [
     "~/Library/Preferences/com.reeve.app.plist",
     "~/Library/Application Support/com.reeve.app",

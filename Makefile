@@ -21,8 +21,9 @@ ZIPFILE = Reeve-$(VERSION).zip
 
 build:
 	swift build --target Reeve -c $(CONFIG)
-	mkdir -p $(BUNDLE)/Contents/MacOS
+	mkdir -p $(BUNDLE)/Contents/MacOS $(BUNDLE)/Contents/Resources
 	cp .build/$(ARCH)-apple-macosx/$(CONFIG)/Reeve $(BINARY)
+	cp Sources/Reeve/Resources/AppIcon.icns $(BUNDLE)/Contents/Resources/AppIcon.icns
 	@$(MAKE) --no-print-directory _plist
 
 _plist:
@@ -39,6 +40,7 @@ _plist:
   <key>NSPrincipalClass</key><string>NSApplication</string>\n\
   <key>NSHighResolutionCapable</key><true/>\n\
   <key>LSApplicationCategoryType</key><string>public.app-category.utilities</string>\n\
+  <key>CFBundleIconFile</key><string>AppIcon</string>\n\
 </dict></plist>\n' > $(INFOPLIST)
 
 run: build

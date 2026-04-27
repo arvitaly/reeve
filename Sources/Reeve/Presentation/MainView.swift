@@ -252,6 +252,7 @@ struct ProcessesTab: View {
 
 struct GeneralTab: View {
     @AppStorage("overlayShowOnLaunch") private var overlayShowOnLaunch = false
+    @AppStorage("menuBarMetric") private var menuBarMetric: MenuBarMetric = .cpu
     @State private var launchAtLogin = false
 
     var body: some View {
@@ -267,6 +268,15 @@ struct GeneralTab: View {
                         launchAtLogin = SMAppService.mainApp.status == .enabled
                     }
                 Toggle("Show overlay widget on launch", isOn: $overlayShowOnLaunch)
+            }
+
+            Section("Menu Bar") {
+                Picker("Show metric", selection: $menuBarMetric) {
+                    ForEach(MenuBarMetric.allCases, id: \.self) { m in
+                        Text(m.label).tag(m)
+                    }
+                }
+                .pickerStyle(.segmented)
             }
 
             Section("Monitoring") {
