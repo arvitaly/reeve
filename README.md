@@ -32,6 +32,7 @@ Watching resource usage is the failure mode. Reeve exists so you can act: suspen
 ## Install
 
 ```sh
+brew tap arvitaly/reeve
 brew install --cask reeve
 ```
 
