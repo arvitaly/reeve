@@ -1,12 +1,6 @@
 import SwiftUI
 import ReeveKit
 
-enum SortMode: String, CaseIterable {
-    case memory = "Mem"
-    case cpu = "CPU"
-    case disk = "Disk"
-}
-
 struct MenuBarView: View {
     @ObservedObject var engine: MonitoringEngine
     @ObservedObject var overlay: OverlayController
@@ -15,17 +9,9 @@ struct MenuBarView: View {
     let mainWindow: MainWindowController
 
     @State private var pendingAction: AppAction?
-    @State private var sortMode: SortMode = .memory
     @State private var searchText: String = ""
-    @State private var showProcesses: Bool = false   // false = apps view, true = process tree
-    @State private var expandedPIDs: Set<pid_t> = []         // process tree
-    @State private var expandedGroupIDs: Set<pid_t> = []     // app groups
-    @State private var selectedGroupID: pid_t?
-    @State private var pendingChipGroup: ApplicationGroup?
-    @State private var pendingChipKind: Action.Kind = .suspend
-    @State private var pendingRuleGroup: ApplicationGroup?
-    @State private var toastMessage: String?
-    @State private var toastTask: Task<Void, Never>?
+    @State private var showProcesses: Bool = false
+    @State private var expandedPIDs: Set<pid_t> = []
 
     private var isSearching: Bool { !searchText.isEmpty }
 
@@ -33,56 +19,17 @@ struct MenuBarView: View {
         VStack(alignment: .leading, spacing: 0) {
             header.fixedSize(horizontal: false, vertical: true)
             Divider()
-            columnHeaders.fixedSize(horizontal: false, vertical: true)
-            Divider()
-            content
+            if showProcesses {
+                columnHeaders.fixedSize(horizontal: false, vertical: true)
+                Divider()
+                processContent
+            } else {
+                AppsListView(engine: engine, searchText: searchText, maxHeight: 500)
+            }
             Divider()
             footer.fixedSize(horizontal: false, vertical: true)
         }
         .frame(width: 460)
-        .overlay(alignment: .bottom) {
-            VStack(spacing: 0) {
-                if let msg = toastMessage {
-                    Toast(message: msg)
-                        .transition(.opacity)
-                }
-                if let ruleGroup = pendingRuleGroup {
-                    GroupRuleSheet(
-                        group: ruleGroup,
-                        onSave: { spec in
-                            appState.groupRuleSpecs.append(spec)
-                            withAnimation(.easeOut(duration: 0.2)) { pendingRuleGroup = nil }
-                            showToast("Rule saved")
-                        },
-                        onCancel: {
-                            withAnimation(.easeOut(duration: 0.2)) { pendingRuleGroup = nil }
-                        }
-                    )
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-                }
-                if let chipGroup = pendingChipGroup {
-                    ConfirmChip(
-                        group: chipGroup,
-                        kind: pendingChipKind,
-                        onConfirm: {
-                            let g = chipGroup, k = pendingChipKind
-                            withAnimation(.easeOut(duration: 0.2)) { pendingChipGroup = nil }
-                            Task {
-                                for p in g.processes { try? await Action(target: p, kind: k).execute() }
-                                selectedGroupID = nil
-                            }
-                        },
-                        onCancel: {
-                            withAnimation(.easeOut(duration: 0.2)) { pendingChipGroup = nil }
-                        }
-                    )
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-                }
-            }
-        }
-        .animation(.easeOut(duration: 0.2), value: pendingChipGroup?.id)
-        .animation(.easeOut(duration: 0.2), value: pendingRuleGroup?.id)
-        .animation(.easeOut(duration: 0.15), value: toastMessage)
         .onAppear {
             engine.showWindow(id: "menuBar")
             hotkey.tryActivate()
@@ -90,11 +37,6 @@ struct MenuBarView: View {
         .onDisappear {
             engine.hideWindow(id: "menuBar")
             searchText = ""
-            selectedGroupID = nil
-            pendingChipGroup = nil
-            pendingRuleGroup = nil
-            toastTask?.cancel()
-            toastMessage = nil
         }
         .sheet(item: $pendingAction) { action in
             if case .process(let p) = action { ActionSheet(process: p) }
@@ -140,23 +82,15 @@ struct MenuBarView: View {
         .padding(.bottom, 6)
     }
 
-    // MARK: Column headers
+    // MARK: Column headers (process view only)
 
     private var columnHeaders: some View {
         HStack(spacing: 6) {
-            // Leading spacer: process rows use icon-only offset; apps rows use chevron+icon
-            Color.clear.frame(width: showProcesses ? 18 : 40)
-            Text(showProcesses ? "Process" : "Application")
+            Color.clear.frame(width: 18)
+            Text("Process")
                 .frame(maxWidth: .infinity, alignment: .leading)
-            if showProcesses {
-                Text("Mem").frame(width: 68, alignment: .trailing)  // process rows unchanged
-                Text("CPU").frame(width: 44, alignment: .trailing)
-            } else {
-                Color.clear.frame(width: 18)  // count
-                sortHeader("CPU", mode: .cpu, width: 44)
-                sortHeader("Mem", mode: .memory, width: 60)
-                Color.clear.frame(width: 90)  // bar+dot
-            }
+            Text("Mem").frame(width: 68, alignment: .trailing)
+            Text("CPU").frame(width: 44, alignment: .trailing)
         }
         .font(.caption2.weight(.medium))
         .foregroundStyle(.secondary)
@@ -165,190 +99,7 @@ struct MenuBarView: View {
         .background(Color.primary.opacity(0.04))
     }
 
-    private func sortHeader(_ label: String, mode: SortMode, width: CGFloat) -> some View {
-        Button {
-            sortMode = (sortMode == mode) ? .memory : mode
-        } label: {
-            HStack(spacing: 2) {
-                Text(label)
-                if sortMode == mode {
-                    Image(systemName: "chevron.down").font(.system(size: 7, weight: .bold))
-                }
-            }
-            .frame(width: width, alignment: .trailing)
-            .foregroundStyle(sortMode == mode ? Color.accentColor : .secondary)
-        }
-        .buttonStyle(.plain)
-    }
-
-    // MARK: Content
-
-    @ViewBuilder
-    private var content: some View {
-        if showProcesses {
-            processContent
-        } else {
-            appsContent
-        }
-    }
-
-    // MARK: Apps view
-
-    private static let systemLimit = 5
-    private static let listMaxHeight: CGFloat = 500
-
-    private var appsContent: some View {
-        let (apps, system) = buildApplicationGroups(snapshot: engine.snapshot)
-        var sorted = sortedGroups(apps)
-        let query = searchText
-        if !query.isEmpty {
-            sorted = sorted.filter { $0.displayName.localizedCaseInsensitiveContains(query) }
-        }
-        return ScrollView {
-            LazyVStack(spacing: 0) {
-                if sorted.isEmpty && !query.isEmpty {
-                    Text("No apps matching \u{201C}\(query)\u{201D}")
-                        .font(.caption).foregroundStyle(.secondary)
-                        .frame(maxWidth: .infinity).padding(.vertical, 12)
-                } else if sorted.isEmpty {
-                    Text("Sampling…")
-                        .font(.caption).foregroundStyle(.secondary)
-                        .frame(maxWidth: .infinity).padding(.vertical, 12)
-                } else {
-                    ForEach(sorted) { group in
-                        let cap = memCap(for: group, in: appState.groupRuleSpecs)
-                        let isSelected = selectedGroupID == group.id
-                        let expanded = expandedGroupIDs.contains(group.id)
-                        ApplicationGroupRow(
-                            group: group,
-                            cap: cap,
-                            isSelected: isSelected,
-                            isExpanded: expanded,
-                            onToggle: {
-                                if expandedGroupIDs.contains(group.id) {
-                                    expandedGroupIDs.remove(group.id)
-                                } else {
-                                    expandedGroupIDs.insert(group.id)
-                                }
-                            },
-                            onSelect: {
-                                selectedGroupID = isSelected ? nil : group.id
-                                if isSelected { pendingChipGroup = nil }
-                            }
-                        )
-                        .contextMenu {
-                            let currentGB = Double(group.totalMemory) / 1_073_741_824
-                            let suggestedCap = GroupRuleSheet.suggestedCap(currentGB: currentGB)
-                            Button(group.displayName) {}.disabled(true)
-                            Divider()
-                            Button("Cap at \(String(format: "%.1f", suggestedCap)) GB → lower priority") {
-                                appState.groupRuleSpecs.append(GroupRuleSpec(
-                                    appNamePattern: group.displayName,
-                                    condition: .totalMemoryAboveGB(suggestedCap),
-                                    action: .reniceDown,
-                                    cooldownSeconds: 60,
-                                    isEnabled: true
-                                ))
-                                selectedGroupID = nil
-                                showToast("Rule saved")
-                            }
-                            Button("Custom rule…") {
-                                selectedGroupID = nil
-                                pendingChipGroup = nil
-                                withAnimation(.easeOut(duration: 0.2)) { pendingRuleGroup = group }
-                            }
-                            Divider()
-                            Button("Action…") { selectedGroupID = isSelected ? nil : group.id }
-                            Button("Open in Activity Monitor") {
-                                NSWorkspace.shared.open(
-                                    URL(fileURLWithPath: "/System/Applications/Utilities/Activity Monitor.app"))
-                            }
-                        }
-                        if isSelected {
-                            InlineActionBar(
-                                group: group,
-                                onKill: {
-                                    selectedGroupID = nil
-                                    appState.triggerKillFlash()
-                                    let procs = group.processes
-                                    Task {
-                                        for p in procs { try? await Action(target: p, kind: .kill).execute() }
-                                    }
-                                },
-                                onChipAction: { kind in
-                                    if case .resume = kind {
-                                        let procs = group.processes
-                                        Task {
-                                            for p in procs { try? await Action(target: p, kind: .resume).execute() }
-                                            selectedGroupID = nil
-                                        }
-                                    } else {
-                                        pendingRuleGroup = nil
-                                        pendingChipGroup = group
-                                        pendingChipKind = kind
-                                    }
-                                },
-                                onAddRule: {
-                                    pendingChipGroup = nil
-                                    withAnimation(.easeOut(duration: 0.2)) { pendingRuleGroup = group }
-                                }
-                            )
-                        }
-                        if expanded {
-                            ForEach(group.processes.sorted { $0.residentMemory > $1.residentMemory }) { process in
-                                ProcessRow(process: process, sortMode: sortMode) {
-                                    pendingAction = .process(process)
-                                }
-                                .padding(.leading, 22)
-                            }
-                        }
-                    }
-                    if !system.isEmpty && query.isEmpty {
-                        systemSection(system)
-                    }
-                }
-            }
-        }
-        .frame(minHeight: 200, maxHeight: Self.listMaxHeight)
-    }
-
-    private func sortedGroups(_ groups: [ApplicationGroup]) -> [ApplicationGroup] {
-        switch sortMode {
-        case .memory: return groups.sorted { $0.totalMemory > $1.totalMemory }
-        case .cpu:    return groups.sorted { $0.totalCPU > $1.totalCPU }
-        case .disk:   return groups.sorted { $0.totalDiskWrite > $1.totalDiskWrite }
-        }
-    }
-
-    private func showToast(_ msg: String) {
-        toastTask?.cancel()
-        withAnimation(.easeOut(duration: 0.15)) { toastMessage = msg }
-        toastTask = Task { @MainActor in
-            try? await Task.sleep(for: .seconds(2))
-            guard !Task.isCancelled else { return }
-            withAnimation(.easeOut(duration: 0.15)) { toastMessage = nil }
-        }
-    }
-
-    private func systemSection(_ procs: [ProcessRecord]) -> some View {
-        VStack(spacing: 0) {
-            Divider().padding(.vertical, 2)
-            HStack {
-                Text("System").font(.caption2.weight(.medium)).foregroundStyle(.tertiary)
-                Spacer()
-                Text("\(procs.count) processes").font(.caption2).foregroundStyle(.tertiary)
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 3)
-            ForEach(Array(procs.prefix(Self.systemLimit))) { proc in
-                ProcessRow(process: proc, sortMode: .memory) {
-                    pendingAction = .process(proc)
-                }
-            }
-        }
-    }
-
-    // MARK: Process view (tree, searched)
+    // MARK: Process view
 
     private static let treeDisplayLimit = 50
     private static let searchLimit = 25
@@ -368,7 +119,7 @@ struct MenuBarView: View {
             LazyVStack(spacing: 0) {
                 if isSearching {
                     ForEach(list) { process in
-                        ProcessRow(process: process, sortMode: sortMode) {
+                        ProcessRow(process: process, sortMode: .memory) {
                             pendingAction = .process(process)
                         }
                     }
@@ -381,7 +132,7 @@ struct MenuBarView: View {
                 }
             }
         }
-        .frame(minHeight: 200, maxHeight: Self.listMaxHeight)
+        .frame(minHeight: 200, maxHeight: 500)
     }
 
     @ViewBuilder
@@ -463,6 +214,280 @@ struct MenuBarView: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 6)
+    }
+}
+
+// MARK: - Apps list view (popup + main window)
+
+struct AppsListView: View {
+    @ObservedObject var engine: MonitoringEngine
+    let searchText: String
+    var maxHeight: CGFloat = .infinity
+
+    @EnvironmentObject var appState: AppState
+
+    @State private var sortMode: SortMode = .memory
+    @State private var expandedGroupIDs: Set<pid_t> = []
+    @State private var selectedGroupID: pid_t?
+    @State private var pendingChipGroup: ApplicationGroup?
+    @State private var pendingChipKind: Action.Kind = .suspend
+    @State private var pendingRuleGroup: ApplicationGroup?
+    @State private var toastMessage: String?
+    @State private var toastTask: Task<Void, Never>?
+    @State private var pendingAction: AppAction?
+
+    private static let systemLimit = 5
+
+    var body: some View {
+        VStack(spacing: 0) {
+            columnHeaders.fixedSize(horizontal: false, vertical: true)
+            Divider()
+            scrollContent
+        }
+        .overlay(alignment: .bottom) {
+            VStack(spacing: 0) {
+                if let msg = toastMessage {
+                    Toast(message: msg)
+                        .transition(.opacity)
+                }
+                if let ruleGroup = pendingRuleGroup {
+                    GroupRuleSheet(
+                        group: ruleGroup,
+                        onSave: { spec in
+                            appState.groupRuleSpecs.append(spec)
+                            withAnimation(.easeOut(duration: 0.2)) { pendingRuleGroup = nil }
+                            showToast("Rule saved")
+                        },
+                        onCancel: {
+                            withAnimation(.easeOut(duration: 0.2)) { pendingRuleGroup = nil }
+                        }
+                    )
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
+                if let chipGroup = pendingChipGroup {
+                    ConfirmChip(
+                        group: chipGroup,
+                        kind: pendingChipKind,
+                        onConfirm: {
+                            let g = chipGroup, k = pendingChipKind
+                            withAnimation(.easeOut(duration: 0.2)) { pendingChipGroup = nil }
+                            Task {
+                                for p in g.processes { try? await Action(target: p, kind: k).execute() }
+                                selectedGroupID = nil
+                            }
+                        },
+                        onCancel: {
+                            withAnimation(.easeOut(duration: 0.2)) { pendingChipGroup = nil }
+                        }
+                    )
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
+            }
+        }
+        .animation(.easeOut(duration: 0.2), value: pendingChipGroup?.id)
+        .animation(.easeOut(duration: 0.2), value: pendingRuleGroup?.id)
+        .animation(.easeOut(duration: 0.15), value: toastMessage)
+        .sheet(item: $pendingAction) { action in
+            if case .process(let p) = action { ActionSheet(process: p) }
+        }
+        .onDisappear {
+            selectedGroupID = nil
+            pendingChipGroup = nil
+            pendingRuleGroup = nil
+            toastTask?.cancel()
+            toastMessage = nil
+        }
+    }
+
+    // MARK: Column headers
+
+    private var columnHeaders: some View {
+        HStack(spacing: 6) {
+            Color.clear.frame(width: 40)
+            Text("Application")
+                .frame(maxWidth: .infinity, alignment: .leading)
+            Color.clear.frame(width: 18)
+            sortHeader("CPU", mode: .cpu, width: 44)
+            sortHeader("Mem", mode: .memory, width: 60)
+            Color.clear.frame(width: 90)
+        }
+        .font(.caption2.weight(.medium))
+        .foregroundStyle(.secondary)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 4)
+        .background(Color.primary.opacity(0.04))
+    }
+
+    private func sortHeader(_ label: String, mode: SortMode, width: CGFloat) -> some View {
+        Button {
+            sortMode = (sortMode == mode) ? .memory : mode
+        } label: {
+            HStack(spacing: 2) {
+                Text(label)
+                if sortMode == mode {
+                    Image(systemName: "chevron.down").font(.system(size: 7, weight: .bold))
+                }
+            }
+            .frame(width: width, alignment: .trailing)
+            .foregroundStyle(sortMode == mode ? Color.accentColor : .secondary)
+        }
+        .buttonStyle(.plain)
+    }
+
+    // MARK: Scroll content
+
+    private var scrollContent: some View {
+        let (apps, system) = buildApplicationGroups(snapshot: engine.snapshot)
+        let sorted = sortedGroups(apps).filter {
+            searchText.isEmpty || $0.displayName.localizedCaseInsensitiveContains(searchText)
+        }
+        return ScrollView {
+            LazyVStack(spacing: 0) {
+                if sorted.isEmpty && !searchText.isEmpty {
+                    Text("No apps matching \u{201C}\(searchText)\u{201D}")
+                        .font(.caption).foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity).padding(.vertical, 12)
+                } else if sorted.isEmpty {
+                    Text("Sampling…")
+                        .font(.caption).foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity).padding(.vertical, 12)
+                } else {
+                    ForEach(sorted) { group in
+                        appGroupContent(group)
+                    }
+                    if !system.isEmpty && searchText.isEmpty {
+                        systemSection(system)
+                    }
+                }
+            }
+        }
+        .frame(minHeight: 200, maxHeight: maxHeight)
+    }
+
+    @ViewBuilder
+    private func appGroupContent(_ group: ApplicationGroup) -> some View {
+        let cap = memCap(for: group, in: appState.groupRuleSpecs)
+        let isSelected = selectedGroupID == group.id
+        let expanded = expandedGroupIDs.contains(group.id)
+        ApplicationGroupRow(
+            group: group,
+            cap: cap,
+            isSelected: isSelected,
+            isExpanded: expanded,
+            onToggle: {
+                if expandedGroupIDs.contains(group.id) {
+                    expandedGroupIDs.remove(group.id)
+                } else {
+                    expandedGroupIDs.insert(group.id)
+                }
+            },
+            onSelect: {
+                selectedGroupID = isSelected ? nil : group.id
+                if isSelected { pendingChipGroup = nil }
+            }
+        )
+        .contextMenu {
+            let currentGB = Double(group.totalMemory) / 1_073_741_824
+            let suggestedCap = GroupRuleSheet.suggestedCap(currentGB: currentGB)
+            Button(group.displayName) {}.disabled(true)
+            Divider()
+            Button("Cap at \(String(format: "%.1f", suggestedCap)) GB → lower priority") {
+                appState.groupRuleSpecs.append(GroupRuleSpec(
+                    appNamePattern: group.displayName,
+                    condition: .totalMemoryAboveGB(suggestedCap),
+                    action: .reniceDown,
+                    cooldownSeconds: 60,
+                    isEnabled: true
+                ))
+                selectedGroupID = nil
+                showToast("Rule saved")
+            }
+            Button("Custom rule…") {
+                selectedGroupID = nil
+                pendingChipGroup = nil
+                withAnimation(.easeOut(duration: 0.2)) { pendingRuleGroup = group }
+            }
+            Divider()
+            Button("Action…") { selectedGroupID = isSelected ? nil : group.id }
+            Button("Open in Activity Monitor") {
+                NSWorkspace.shared.open(
+                    URL(fileURLWithPath: "/System/Applications/Utilities/Activity Monitor.app"))
+            }
+        }
+        if isSelected {
+            InlineActionBar(
+                group: group,
+                onKill: {
+                    selectedGroupID = nil
+                    appState.triggerKillFlash()
+                    let procs = group.processes
+                    Task {
+                        for p in procs { try? await Action(target: p, kind: .kill).execute() }
+                    }
+                },
+                onChipAction: { kind in
+                    if case .resume = kind {
+                        let procs = group.processes
+                        Task {
+                            for p in procs { try? await Action(target: p, kind: .resume).execute() }
+                            selectedGroupID = nil
+                        }
+                    } else {
+                        pendingRuleGroup = nil
+                        pendingChipGroup = group
+                        pendingChipKind = kind
+                    }
+                },
+                onAddRule: {
+                    pendingChipGroup = nil
+                    withAnimation(.easeOut(duration: 0.2)) { pendingRuleGroup = group }
+                }
+            )
+        }
+        if expanded {
+            ForEach(group.processes.sorted { $0.residentMemory > $1.residentMemory }) { process in
+                ProcessRow(process: process, sortMode: sortMode) {
+                    pendingAction = .process(process)
+                }
+                .padding(.leading, 22)
+            }
+        }
+    }
+
+    private func sortedGroups(_ groups: [ApplicationGroup]) -> [ApplicationGroup] {
+        switch sortMode {
+        case .memory: return groups.sorted { $0.totalMemory > $1.totalMemory }
+        case .cpu:    return groups.sorted { $0.totalCPU > $1.totalCPU }
+        case .disk:   return groups.sorted { $0.totalDiskWrite > $1.totalDiskWrite }
+        }
+    }
+
+    private func showToast(_ msg: String) {
+        toastTask?.cancel()
+        withAnimation(.easeOut(duration: 0.15)) { toastMessage = msg }
+        toastTask = Task { @MainActor in
+            try? await Task.sleep(for: .seconds(2))
+            guard !Task.isCancelled else { return }
+            withAnimation(.easeOut(duration: 0.15)) { toastMessage = nil }
+        }
+    }
+
+    private func systemSection(_ procs: [ProcessRecord]) -> some View {
+        VStack(spacing: 0) {
+            Divider().padding(.vertical, 2)
+            HStack {
+                Text("System").font(.caption2.weight(.medium)).foregroundStyle(.tertiary)
+                Spacer()
+                Text("\(procs.count) processes").font(.caption2).foregroundStyle(.tertiary)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 3)
+            ForEach(Array(procs.prefix(Self.systemLimit))) { proc in
+                ProcessRow(process: proc, sortMode: .memory) {
+                    pendingAction = .process(proc)
+                }
+            }
+        }
     }
 }
 

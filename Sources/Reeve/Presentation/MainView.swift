@@ -12,6 +12,8 @@ struct MainView: View {
         TabView {
             ProcessesTab(engine: appState.engine)
                 .tabItem { Label("Processes", systemImage: "cpu") }
+            AppsTab(engine: appState.engine)
+                .tabItem { Label("Apps", systemImage: "app.badge") }
             RulesTab()
                 .environmentObject(appState)
                 .tabItem { Label("Rules", systemImage: "slider.horizontal.3") }
@@ -245,6 +247,50 @@ struct ProcessesTab: View {
         if pct > 80 { return .red }
         if pct > 40 { return .orange }
         return .primary
+    }
+}
+
+// MARK: - Apps tab
+
+struct AppsTab: View {
+    @ObservedObject var engine: MonitoringEngine
+    @EnvironmentObject var appState: AppState
+    @State private var searchText = ""
+
+    var body: some View {
+        VStack(spacing: 0) {
+            topBar
+            Divider()
+            AppsListView(engine: engine, searchText: searchText)
+            Divider()
+            statusBar
+        }
+    }
+
+    private var topBar: some View {
+        HStack {
+            TextField("Search apps", text: $searchText)
+                .textFieldStyle(.roundedBorder)
+                .frame(width: 220)
+            Spacer()
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+    }
+
+    private var statusBar: some View {
+        HStack {
+            let (apps, _) = buildApplicationGroups(snapshot: engine.snapshot)
+            Text("\(apps.count) apps · \(engine.snapshot.processes.count) procs")
+                .font(.caption.monospacedDigit())
+                .foregroundStyle(.secondary)
+            Spacer()
+            Text(engine.snapshot.sampledAt, style: .time)
+                .font(.caption.monospacedDigit())
+                .foregroundStyle(.tertiary)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
     }
 }
 

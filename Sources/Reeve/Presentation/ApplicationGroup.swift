@@ -2,6 +2,14 @@ import AppKit
 import SwiftUI
 import ReeveKit
 
+// MARK: - Sort mode
+
+enum SortMode: String, CaseIterable {
+    case memory = "Mem"
+    case cpu = "CPU"
+    case disk = "Disk"
+}
+
 // MARK: - Model
 
 struct ApplicationGroup: Identifiable {
