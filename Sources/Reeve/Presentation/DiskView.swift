@@ -149,11 +149,7 @@ final class DiskScanner: ObservableObject {
                   detail: "Java/Kotlin build dependencies",
                   path: home.appendingPathComponent(".gradle/caches"),
                   category: "Package Managers"),
-            // System caches & logs
-            .init(displayName: "User Caches",
-                  detail: "All app caches in ~/Library/Caches",
-                  path: lib.appendingPathComponent("Caches"),
-                  category: "System"),
+            // System
             .init(displayName: "User Logs",
                   detail: "Diagnostic logs in ~/Library/Logs",
                   path: lib.appendingPathComponent("Logs"),

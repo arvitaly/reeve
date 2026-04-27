@@ -82,6 +82,47 @@ final class ActionTests: XCTestCase {
         XCTAssertTrue(Action.Kind.renice(10).helpText.lowercased().contains("lower"))
     }
 
+    // MARK: preflight — terminateGracefully
+
+    func testTerminateGracefullyIsIrreversible() {
+        XCTAssertFalse(Action(target: record(), kind: .terminateGracefully(graceSeconds: 5)).preflight().isReversible)
+    }
+
+    func testTerminateGracefullyEffectIsUnknownWithReason() {
+        let effect = Action(target: record(), kind: .terminateGracefully(graceSeconds: 5)).preflight().effect
+        guard case .unknown(let reason) = effect else { return XCTFail("expected unknown") }
+        XCTAssertFalse(reason.isEmpty)
+    }
+
+    func testTerminateGracefullyDescriptionContainsPIDAndGrace() {
+        let rec = record(pid: 55555)
+        let desc = Action(target: rec, kind: .terminateGracefully(graceSeconds: 15)).preflight().description
+        XCTAssertTrue(desc.contains("55555"))
+        XCTAssertTrue(desc.contains("15"))
+    }
+
+    func testTerminateGracefullyReeveHasWarning() {
+        let rec = ProcessRecord(pid: ProcessRecord.reevePID, name: "Reeve", residentMemory: 0, cpuPercent: 0)
+        XCTAssertFalse(Action(target: rec, kind: .terminateGracefully(graceSeconds: 5)).preflight().warnings.isEmpty)
+    }
+
+    func testTerminateGracefullyShortNameIsTerminate() {
+        XCTAssertEqual(Action.Kind.terminateGracefully(graceSeconds: 10).shortName, "Terminate")
+    }
+
+    func testTerminateGracefullyHelpTextMentionsGrace() {
+        let text = Action.Kind.terminateGracefully(graceSeconds: 20).helpText
+        XCTAssertTrue(text.contains("20"))
+    }
+
+    func testExecuteTerminateGracefullyOnOwnedProcess() async throws {
+        let proc = try spawnSleep()
+        let rec = ProcessRecord(pid: pid_t(proc.processIdentifier), name: "sleep", residentMemory: 0, cpuPercent: 0)
+        try await Action(target: rec, kind: .terminateGracefully(graceSeconds: 3)).execute()
+        proc.waitUntilExit()
+        XCTAssertEqual(proc.terminationReason, .uncaughtSignal)
+    }
+
     // MARK: preflight — renice
 
     func testReniceIsReversible() {

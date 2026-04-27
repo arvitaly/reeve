@@ -1,6 +1,5 @@
 import AppKit
 import Combine
-import Darwin
 import Foundation
 import ReeveKit
 
@@ -118,6 +117,7 @@ final class GroupRuleEngine: ObservableObject {
 
     var specs: [GroupRuleSpec] = []
     var pressurePolicy = MemoryPressurePolicy()
+    var onKill: (() -> Void)?
     private var cooldowns: [String: ContinuousClock.Instant] = [:]
     private var pressureCooldownUntil: ContinuousClock.Instant?
     // Group displayNames already killed this pressure episode; reset when memory drops.
@@ -175,22 +175,16 @@ final class GroupRuleEngine: ObservableObject {
                 $0.displayName.localizedCaseInsensitiveContains(pattern) &&
                 !pressureKilledGroups.contains($0.displayName)
             }) else { continue }
-            let pids = group.processes.map { $0.pid }
-            let warn = pressurePolicy.warnBeforeKill
-            let grace = pressurePolicy.graceSeconds
-            Task.detached {
-                if warn {
-                    for pid in pids { Darwin.kill(pid, SIGTERM) }
-                    try? await Task.sleep(for: .seconds(grace))
-                    for pid in pids where Darwin.kill(pid, 0) == 0 { Darwin.kill(pid, SIGKILL) }
-                } else {
-                    for pid in pids { Darwin.kill(pid, SIGKILL) }
-                }
-            }
+            let processes = group.processes
+            let kind: Action.Kind = pressurePolicy.warnBeforeKill
+                ? .terminateGracefully(graceSeconds: pressurePolicy.graceSeconds)
+                : .kill
+            Task.detached { for p in processes { try? await Action(target: p, kind: kind).execute() } }
+            onKill?()
             pressureKilledGroups.insert(group.displayName)
             pressureCooldownUntil = now + .seconds(pressurePolicy.cooldownSeconds)
-            let actionName = warn
-                ? String(format: "Terminate (%.0fs grace)", grace)
+            let actionName = pressurePolicy.warnBeforeKill
+                ? String(format: "Terminate (%.0fs grace)", pressurePolicy.graceSeconds)
                 : "Force Kill"
             actionLog.append(GroupActionLogEntry(
                 appName: group.displayName,

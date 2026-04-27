@@ -46,6 +46,7 @@ final class AppState: ObservableObject {
         self.pressurePolicy = policy
         groupRuleEngine.pressurePolicy = policy
         groupRuleEngine.connect(to: engine)
+        groupRuleEngine.onKill = { [weak self] in self?.triggerKillFlash() }
         overlay.configure(appState: self)  // must precede any show() call
         requestNotificationAuthorization()
         observeGroupActionLog()

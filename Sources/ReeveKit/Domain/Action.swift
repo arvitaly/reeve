@@ -55,19 +55,20 @@ public struct Action: Sendable {
     /// Reversible actions (``renice(_:)``, ``suspend``) can be undone.
     /// Irreversible actions (``terminate``, ``kill``) cannot.
     public enum Kind: Sendable {
-        case terminate          // SIGTERM → SIGKILL after 3s, irreversible
-        case kill               // SIGKILL immediately, irreversible
-        case renice(Int32)      // change nice value, reversible
-        case suspend            // SIGSTOP, reversible
-        case resume             // SIGCONT, one-directional
+        case terminate                              // SIGTERM → SIGKILL after 3s, irreversible
+        case terminateGracefully(graceSeconds: Double) // SIGTERM → SIGKILL after N seconds, irreversible
+        case kill                                   // SIGKILL immediately, irreversible
+        case renice(Int32)                          // change nice value, reversible
+        case suspend                                // SIGSTOP, reversible
+        case resume                                 // SIGCONT, one-directional
 
         public var shortName: String {
             switch self {
-            case .terminate:      return "Terminate"
-            case .kill:           return "Force Kill"
-            case .renice(let v):  return v < 0 ? "Raise Priority" : "Lower Priority"
-            case .suspend:        return "Suspend"
-            case .resume:         return "Resume"
+            case .terminate, .terminateGracefully: return "Terminate"
+            case .kill:                            return "Force Kill"
+            case .renice(let v):                   return v < 0 ? "Raise Priority" : "Lower Priority"
+            case .suspend:                         return "Suspend"
+            case .resume:                          return "Resume"
             }
         }
 
@@ -76,6 +77,8 @@ public struct Action: Sendable {
             switch self {
             case .terminate:
                 return "Sends SIGTERM; escalates to SIGKILL after 3 seconds if the process hasn't quit."
+            case .terminateGracefully(let s):
+                return "Sends SIGTERM; escalates to SIGKILL after \(Int(s)) seconds if the process hasn't quit."
             case .kill:
                 return "Sends SIGKILL immediately — cannot be ignored. Use when Terminate fails."
             case .renice(let v) where v < 0:
@@ -104,6 +107,14 @@ public struct Action: Sendable {
         case .terminate:
             return PreflightResult(
                 description: "Send SIGTERM to \(target.name) (PID \(target.pid)); escalate to SIGKILL after 3s if still running",
+                isReversible: false,
+                effect: .unknown(reason: "Memory freed depends on OS reclaim decisions after process exits"),
+                warnings: target.isReeve ? ["This will terminate Reeve"] : []
+            )
+
+        case .terminateGracefully(let grace):
+            return PreflightResult(
+                description: "Send SIGTERM to \(target.name) (PID \(target.pid)); escalate to SIGKILL after \(Int(grace))s if still running",
                 isReversible: false,
                 effect: .unknown(reason: "Memory freed depends on OS reclaim decisions after process exits"),
                 warnings: target.isReeve ? ["This will terminate Reeve"] : []
@@ -160,6 +171,13 @@ public struct Action: Sendable {
             // at the kernel level (via SIG_IGN) and has no child processes destabilises NSTask's
             // waitpid reaping in the same xctest process, causing subsequent tests to hang.
             // The branch is structurally sound; the gap is a test-harness constraint, not a logic gap.
+            if kill(target.pid, 0) == 0 {
+                kill(target.pid, SIGKILL)
+            }
+
+        case .terminateGracefully(let grace):
+            kill(target.pid, SIGTERM)
+            try await Task.sleep(for: .seconds(grace))
             if kill(target.pid, 0) == 0 {
                 kill(target.pid, SIGKILL)
             }

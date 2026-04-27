@@ -393,6 +393,9 @@ struct ApplicationGroupSheet: View {
         case .terminate:
             isReversible = false
             effectDesc = "Sends SIGTERM to all \(count) processes; escalates to SIGKILL after 3s"
+        case .terminateGracefully(let grace):
+            isReversible = false
+            effectDesc = "Sends SIGTERM to all \(count) processes; escalates to SIGKILL after \(Int(grace))s"
         case .suspend:
             isReversible = true
             effectDesc = "Pauses all \(count) processes; memory remains reserved"
