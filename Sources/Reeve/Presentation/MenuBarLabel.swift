@@ -15,41 +15,52 @@ enum MenuBarMetric: String, CaseIterable {
     }
 }
 
-// Brackets + filled rect — mirrors reeve-menubar-template.svg geometry (viewBox 0 0 1024 1024).
-private struct ReeveIcon: View {
-    var color: Color = .primary
-    var size: CGFloat = 16
+// Template NSImage rendered via CoreGraphics — isTemplate=true lets macOS
+// composite it correctly for any menu bar appearance (light/dark/tinted).
+private func makeReeveTemplateImage(size: CGFloat = 16) -> NSImage {
+    let sz = NSSize(width: size, height: size)
+    let image = NSImage(size: sz, flipped: false) { bounds in
+        guard let ctx = NSGraphicsContext.current?.cgContext else { return false }
+        let w = bounds.width, h = bounds.height
+        let sw = max(1.5, w * 0.09)
 
-    var body: some View {
-        Canvas { ctx, sz in
-            let w = sz.width, h = sz.height
-            let sw = max(1.5, w * 0.09)
+        ctx.setStrokeColor(NSColor.black.cgColor)
+        ctx.setLineWidth(sw)
+        ctx.setLineCap(.round)
+        ctx.setLineJoin(.round)
 
-            var lb = Path()
-            lb.move(to:    CGPoint(x: w * 0.273, y: h * 0.273))
-            lb.addLine(to: CGPoint(x: w * 0.195, y: h * 0.273))
-            lb.addLine(to: CGPoint(x: w * 0.195, y: h * 0.727))
-            lb.addLine(to: CGPoint(x: w * 0.273, y: h * 0.727))
-            ctx.stroke(lb, with: .color(color),
-                       style: StrokeStyle(lineWidth: sw, lineCap: .round, lineJoin: .round))
+        // Left bracket
+        ctx.beginPath()
+        ctx.move(to:    CGPoint(x: w * 0.273, y: h * 0.273))
+        ctx.addLine(to: CGPoint(x: w * 0.195, y: h * 0.273))
+        ctx.addLine(to: CGPoint(x: w * 0.195, y: h * 0.727))
+        ctx.addLine(to: CGPoint(x: w * 0.273, y: h * 0.727))
+        ctx.strokePath()
 
-            var rb = Path()
-            rb.move(to:    CGPoint(x: w * 0.727, y: h * 0.273))
-            rb.addLine(to: CGPoint(x: w * 0.805, y: h * 0.273))
-            rb.addLine(to: CGPoint(x: w * 0.805, y: h * 0.727))
-            rb.addLine(to: CGPoint(x: w * 0.727, y: h * 0.727))
-            ctx.stroke(rb, with: .color(color),
-                       style: StrokeStyle(lineWidth: sw, lineCap: .round, lineJoin: .round))
+        // Right bracket
+        ctx.beginPath()
+        ctx.move(to:    CGPoint(x: w * 0.727, y: h * 0.273))
+        ctx.addLine(to: CGPoint(x: w * 0.805, y: h * 0.273))
+        ctx.addLine(to: CGPoint(x: w * 0.805, y: h * 0.727))
+        ctx.addLine(to: CGPoint(x: w * 0.727, y: h * 0.727))
+        ctx.strokePath()
 
-            let rx = w * 0.375, ry = h * 0.406, rw = w * 0.250, rh = h * 0.188
-            let cr = min(rw, rh) * 0.125
-            ctx.fill(Path(roundedRect: CGRect(x: rx, y: ry, width: rw, height: rh),
-                          cornerRadius: cr),
-                     with: .color(color))
-        }
-        .frame(width: size, height: size)
+        // Center rect
+        ctx.setFillColor(NSColor.black.cgColor)
+        let rx = w * 0.375, ry = h * 0.406, rw = w * 0.250, rh = h * 0.188
+        let cr = min(rw, rh) * 0.125
+        let path = CGPath(roundedRect: CGRect(x: rx, y: ry, width: rw, height: rh),
+                          cornerWidth: cr, cornerHeight: cr, transform: nil)
+        ctx.addPath(path)
+        ctx.fillPath()
+
+        return true
     }
+    image.isTemplate = true
+    return image
 }
+
+private let reeveTemplateImage = makeReeveTemplateImage()
 
 struct MenuBarLabel: View {
     @ObservedObject var engine: MonitoringEngine
@@ -116,14 +127,14 @@ struct MenuBarLabel: View {
 
     private var normalLabel: some View {
         HStack(spacing: 4) {
-            ReeveIcon(color: .primary.opacity(0.6))
+            Image(nsImage: reeveTemplateImage)
             metricText
         }
     }
 
     private var warnLabel: some View {
         HStack(spacing: 4) {
-            ReeveIcon(color: Color.rvAccent)
+            Image(nsImage: reeveTemplateImage).colorMultiply(Color.rvAccent)
             metricText
         }
     }
