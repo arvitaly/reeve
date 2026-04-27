@@ -187,6 +187,11 @@ struct MenuBarView: View {
             Text("\(apps.count) apps · \(procs) procs")
                 .font(.caption.monospacedDigit())
                 .foregroundStyle(.secondary)
+            if let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String {
+                Text("v\(version)")
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.tertiary)
+            }
             Spacer()
             Divider().frame(height: 14)
             HStack(spacing: 3) {
