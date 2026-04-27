@@ -4,10 +4,10 @@ cask "reeve" do
   # sha256 printed at the end. Update both version and sha256 on every release.
   sha256 "REPLACE_WITH_SHA256_AFTER_NOTARIZATION"
 
-  url "https://github.com/REPLACE_WITH_OWNER/reeve/releases/download/v#{version}/Reeve-#{version}.zip"
+  url "https://github.com/arvitaly/reeve/releases/download/v#{version}/Reeve-#{version}.zip"
   name "Reeve"
   desc "Process intervention tool — observe, limit, release"
-  homepage "https://github.com/REPLACE_WITH_OWNER/reeve"
+  homepage "https://github.com/arvitaly/reeve"
 
   depends_on macos: ">= :ventura"
 

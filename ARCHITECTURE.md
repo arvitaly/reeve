@@ -1,8 +1,5 @@
 # Reeve — Architecture Decision Records
 
-Design handoff source: `~/Downloads/design_handoff_reeve/`
-Reference: `README.md` in handoff + interactive prototypes `Reeve.html`, `Reeve Canvas.html`.
-
 Personality: precise, calm, powerful. Intervention tool, not a monitor. Watching is the failure mode.
 
 ---
