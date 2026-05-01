@@ -9,8 +9,11 @@ public struct ProcessRecord: Identifiable, Sendable, Hashable {
     /// Parent PID from proc_bsdshortinfo (pbsi_ppid). Zero when unavailable.
     public let parentPID: pid_t
     public let name: String
-    /// Resident set size in bytes.
+    /// Resident set size in bytes (pages physically in RAM).
     public let residentMemory: UInt64
+    /// Physical footprint: resident + compressed + IOKit. What Activity Monitor shows.
+    /// Nil when proc_pid_rusage returns EPERM (other user's process).
+    public let physFootprint: UInt64?
     /// CPU usage since the previous sample, in percent (0–100). Zero on the first sample.
     public let cpuPercent: Double
     /// Disk bytes read per second since the previous sample. Zero on the first sample or when
@@ -29,11 +32,13 @@ public struct ProcessRecord: Identifiable, Sendable, Hashable {
     // No special handling — if Reeve ranks high, it ranks high.
     public init(
         pid: pid_t, name: String, residentMemory: UInt64, cpuPercent: Double,
-        parentPID: pid_t = 0, diskReadRate: UInt64 = 0, diskWriteRate: UInt64 = 0,
+        parentPID: pid_t = 0, physFootprint: UInt64? = nil,
+        diskReadRate: UInt64 = 0, diskWriteRate: UInt64 = 0,
         isSuspended: Bool = false, niceValue: Int32 = 0
     ) {
         self.pid = pid; self.name = name; self.residentMemory = residentMemory
-        self.cpuPercent = cpuPercent; self.parentPID = parentPID
+        self.physFootprint = physFootprint; self.cpuPercent = cpuPercent
+        self.parentPID = parentPID
         self.diskReadRate = diskReadRate; self.diskWriteRate = diskWriteRate
         self.isSuspended = isSuspended; self.niceValue = niceValue
     }
@@ -42,8 +47,16 @@ public struct ProcessRecord: Identifiable, Sendable, Hashable {
     /// `true` when this record describes the running Reeve process itself.
     public var isReeve: Bool { pid == ProcessRecord.reevePID }
 
-    /// Human-readable memory size using binary units (e.g. "128 MB").
+    /// Footprint when available, RSS as fallback. Non-optional for sort comparators.
+    public var effectiveMemory: UInt64 { physFootprint ?? residentMemory }
+
+    /// Human-readable footprint (or RSS when footprint unavailable).
     public var formattedMemory: String {
+        ByteCountFormatter.string(fromByteCount: Int64(physFootprint ?? residentMemory), countStyle: .memory)
+    }
+
+    /// Human-readable RSS.
+    public var formattedRSS: String {
         ByteCountFormatter.string(fromByteCount: Int64(residentMemory), countStyle: .memory)
     }
 
@@ -65,6 +78,23 @@ public struct ProcessRecord: Identifiable, Sendable, Hashable {
     }
 }
 
+/// System-level memory breakdown from vm_statistics64 (host_statistics64 / HOST_VM_INFO64).
+public struct MemoryBreakdown: Sendable {
+    public let wired: UInt64
+    public let active: UInt64
+    public let compressed: UInt64
+    public let inactive: UInt64
+    public let free: UInt64
+
+    public var used: UInt64 { wired + active + compressed }
+    public var total: UInt64 { wired + active + compressed + inactive + free }
+
+    public init(wired: UInt64, active: UInt64, compressed: UInt64, inactive: UInt64, free: UInt64) {
+        self.wired = wired; self.active = active; self.compressed = compressed
+        self.inactive = inactive; self.free = free
+    }
+}
+
 /// An immutable snapshot of the entire process list at a single moment in time.
 public struct SystemSnapshot: Sendable {
     public let processes: [ProcessRecord]
@@ -74,6 +104,9 @@ public struct SystemSnapshot: Sendable {
     /// Kernel-reported used pages (wire + active + compressor) × page size.
     /// Nil when `host_statistics64` fails — honest absence per CLAUDE.md.
     public let usedMemory: UInt64?
+    /// Per-category system memory breakdown from vm_statistics64.
+    /// All values in bytes. Nil when host_statistics64 fails.
+    public let memoryBreakdown: MemoryBreakdown?
     /// Sum of all process CPU percentages.
     public let totalCPU: Double
 
@@ -82,12 +115,14 @@ public struct SystemSnapshot: Sendable {
         sampledAt: Date,
         physicalMemory: UInt64 = ProcessInfo.processInfo.physicalMemory,
         usedMemory: UInt64? = nil,
+        memoryBreakdown: MemoryBreakdown? = nil,
         totalCPU: Double = 0
     ) {
         self.processes = processes
         self.sampledAt = sampledAt
         self.physicalMemory = physicalMemory
         self.usedMemory = usedMemory
+        self.memoryBreakdown = memoryBreakdown
         self.totalCPU = totalCPU
     }
 

@@ -89,18 +89,21 @@ struct MenuBarLabel: View {
     }
 
     @ViewBuilder private var metricText: some View {
+        let parts = metricParts
+        if !parts.isEmpty {
+            Text(parts.joined(separator: " "))
+                .font(.caption.monospacedDigit())
+        }
+    }
+
+    private var metricParts: [String] {
+        var parts: [String] = []
         let cpu = engine.snapshot.totalCPU
-        let mem = engine.snapshot.usedMemory
+        if showCPU && cpu >= 1 { parts.append(String(format: "%.0f%%", cpu)) }
+        if showMemory, let m = engine.snapshot.usedMemory { parts.append(shortMem(m)) }
         let diskWrite = engine.snapshot.processes.reduce(0) { $0 + $1.diskWriteRate }
-        if showCPU && cpu >= 1 {
-            Text(String(format: "%.0f%%", cpu)).font(.caption.monospacedDigit())
-        }
-        if showMemory, let m = mem {
-            Text(shortMem(m)).font(.caption.monospacedDigit())
-        }
-        if showDisk && diskWrite >= 1_048_576 {
-            Text("↑" + shortMem(diskWrite) + "/s").font(.caption.monospacedDigit())
-        }
+        if showDisk && diskWrite >= 1_048_576 { parts.append("↑" + shortMem(diskWrite) + "/s") }
+        return parts
     }
 
     private var flashLabel: some View {

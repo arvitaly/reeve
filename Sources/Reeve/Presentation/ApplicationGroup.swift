@@ -6,7 +6,8 @@ import ReeveKit
 // MARK: - Sort mode
 
 enum SortMode: String, CaseIterable {
-    case memory = "Mem"
+    case memory = "Footprint"
+    case rss = "RSS"
     case cpu = "CPU"
     case disk = "Disk"
 }
@@ -19,7 +20,12 @@ struct ApplicationGroup: Identifiable {
     let icon: NSImage?
     let processes: [ProcessRecord]
 
-    var totalMemory: UInt64 { processes.reduce(0) { $0 + $1.residentMemory } }
+    /// Footprint-based total (compressed + resident + IOKit). Falls back to RSS per-process
+    /// when rusage returned EPERM.
+    var totalMemory: UInt64 {
+        processes.reduce(0) { $0 + ($1.physFootprint ?? $1.residentMemory) }
+    }
+    var totalRSS: UInt64 { processes.reduce(0) { $0 + $1.residentMemory } }
     var totalCPU: Double { processes.reduce(0) { $0 + $1.cpuPercent } }
     var totalDiskWrite: UInt64 { processes.reduce(0) { $0 + $1.diskWriteRate } }
     var isReeve: Bool { processes.contains { $0.isReeve } }
@@ -28,6 +34,9 @@ struct ApplicationGroup: Identifiable {
 
     var formattedMemory: String {
         ByteCountFormatter.string(fromByteCount: Int64(totalMemory), countStyle: .memory)
+    }
+    var formattedRSS: String {
+        ByteCountFormatter.string(fromByteCount: Int64(totalRSS), countStyle: .memory)
     }
     var formattedCPU: String { String(format: "%.1f%%", totalCPU) }
 }
@@ -171,8 +180,8 @@ extension ApplicationGroup {
             return .normal
         }
         let gb = Double(totalMemory) / (1024 * 1024 * 1024)
-        if gb >= 6.0 { return .over }
-        if gb >= 4.0 { return .warn }
+        if gb >= 10.0 { return .over }
+        if gb >= 6.0 { return .warn }
         return .normal
     }
 
@@ -216,7 +225,7 @@ enum AppAction: Identifiable {
 
 // MARK: - App group row
 
-// Column grid: [chevron 14] [icon 20] [name flex] [count 18] [cpu 44] [mem 60] [bar+dot 90]
+// Column grid: [chevron 14] [icon 20] [name flex] [count 18] [cpu 44] [rss 52] [foot 60] [bar+dot 90]
 struct ApplicationGroupRow: View {
     let group: ApplicationGroup
     let cap: UInt64?
@@ -264,6 +273,10 @@ struct ApplicationGroupRow: View {
                 .font(.caption.monospacedDigit())
                 .foregroundStyle(Color.rvTextDim)
                 .frame(width: 44, alignment: .trailing)
+            Text(group.formattedRSS)
+                .font(.caption.monospacedDigit())
+                .foregroundStyle(Color.rvTextFaint)
+                .frame(width: 52, alignment: .trailing)
             Text(group.formattedMemory)
                 .font(.caption.monospacedDigit())
                 .foregroundStyle(severity.textColor)

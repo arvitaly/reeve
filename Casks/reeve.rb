@@ -1,8 +1,8 @@
 cask "reeve" do
-  version "0.1.8"
+  version "0.1.9"
   # Run `make release VERSION=#{version}` (or `make notarize`) and paste the
   # sha256 printed at the end. Update both version and sha256 on every release.
-  sha256 "13d874cd260860d64e365c8d5bd53d16f4ae6179817a11dab34d983a90f9fe04"
+  sha256 "7e31814d7854348dfc9829b7ba1b6f87d0d19792a89d8fe1997b5c848686d145"
 
   url "https://github.com/arvitaly/reeve/releases/download/v#{version}/Reeve-#{version}.zip"
   name "Reeve"

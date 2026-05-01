@@ -118,6 +118,28 @@ extension Color {
             d: oklchToSRGB(0.50, 0.008, hDeg: 250)
         )
     }
+
+    // MARK: Memory breakdown colors
+
+    static var rvMemWired: Color {
+        let rgb = oklchToSRGB(0.55, 0.12, hDeg: 30)
+        return Color(red: rgb.r, green: rgb.g, blue: rgb.b)
+    }
+
+    static var rvMemActive: Color {
+        let rgb = oklchToSRGB(0.60, 0.14, hDeg: 145)
+        return Color(red: rgb.r, green: rgb.g, blue: rgb.b)
+    }
+
+    static var rvMemCompressed: Color {
+        let rgb = oklchToSRGB(0.62, 0.15, hDeg: 270)
+        return Color(red: rgb.r, green: rgb.g, blue: rgb.b)
+    }
+
+    static var rvMemInactive: Color {
+        let rgb = oklchToSRGB(0.55, 0.04, hDeg: 250)
+        return Color(red: rgb.r, green: rgb.g, blue: rgb.b)
+    }
 }
 
 // MARK: - Severity

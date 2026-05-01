@@ -109,7 +109,7 @@ struct MenuBarView: View {
         if isSearching {
             list = Array(engine.snapshot.processes
                 .filter { $0.name.localizedCaseInsensitiveContains(searchText) }
-                .sorted { $0.residentMemory > $1.residentMemory }
+                .sorted { ($0.physFootprint ?? $0.residentMemory) > ($1.physFootprint ?? $1.residentMemory) }
                 .prefix(Self.searchLimit))
         } else {
             list = []
@@ -313,7 +313,8 @@ struct AppsListView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
             Color.clear.frame(width: 18)
             sortHeader("CPU", mode: .cpu, width: 44)
-            sortHeader("Mem", mode: .memory, width: 60)
+            sortHeader("RSS", mode: .rss, width: 52)
+            sortHeader("Foot", mode: .memory, width: 60)
             Color.clear.frame(width: 90)
         }
         .font(.caption2.weight(.medium))
@@ -450,7 +451,7 @@ struct AppsListView: View {
             )
         }
         if expanded {
-            ForEach(group.processes.sorted { $0.residentMemory > $1.residentMemory }) { process in
+            ForEach(group.processes.sorted { ($0.physFootprint ?? $0.residentMemory) > ($1.physFootprint ?? $1.residentMemory) }) { process in
                 ProcessRow(process: process, sortMode: sortMode) {
                     pendingAction = .process(process)
                 }
@@ -462,6 +463,7 @@ struct AppsListView: View {
     private func sortedGroups(_ groups: [ApplicationGroup]) -> [ApplicationGroup] {
         switch sortMode {
         case .memory: return groups.sorted { $0.totalMemory > $1.totalMemory }
+        case .rss:    return groups.sorted { $0.totalRSS > $1.totalRSS }
         case .cpu:    return groups.sorted { $0.totalCPU > $1.totalCPU }
         case .disk:   return groups.sorted { $0.totalDiskWrite > $1.totalDiskWrite }
         }
@@ -608,7 +610,7 @@ struct ProcessRow: View {
     private var metrics: some View {
         diskBadge
         switch sortMode {
-        case .memory, .disk:
+        case .memory, .rss, .disk:
             Text(process.formattedMemory)
                 .font(.caption.monospacedDigit())
                 .frame(width: 68, alignment: .trailing)

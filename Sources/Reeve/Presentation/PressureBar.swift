@@ -1,7 +1,7 @@
 import SwiftUI
 import ReeveKit
 
-/// Full-width bar showing system RAM usage and total CPU, placed in the popover/widget header.
+/// Full-width bar showing system RAM breakdown and total CPU, placed in the popover/widget header.
 struct PressureBar: View {
     let snapshot: SystemSnapshot
 
@@ -40,16 +40,89 @@ struct PressureBar: View {
                     .font(RVFont.mono(size: 10))
                     .foregroundStyle(Color.rvTextFaint)
             }
-            GeometryReader { geo in
-                ZStack(alignment: .leading) {
-                    RoundedRectangle(cornerRadius: 2.5)
-                        .fill(Color.rvBarTrack)
-                    RoundedRectangle(cornerRadius: 2.5)
-                        .fill(severity.barColor)
-                        .frame(width: geo.size.width * fill)
+            if let bd = snapshot.memoryBreakdown {
+                MemoryBreakdownBar(breakdown: bd, physical: snapshot.physicalMemory)
+            } else {
+                GeometryReader { geo in
+                    ZStack(alignment: .leading) {
+                        RoundedRectangle(cornerRadius: 2.5)
+                            .fill(Color.rvBarTrack)
+                        RoundedRectangle(cornerRadius: 2.5)
+                            .fill(severity.barColor)
+                            .frame(width: geo.size.width * fill)
+                    }
                 }
+                .frame(height: 5)
             }
-            .frame(height: 5)
+            if let bd = snapshot.memoryBreakdown {
+                MemoryBreakdownLegend(breakdown: bd)
+            }
         }
+    }
+}
+
+// MARK: - Stacked breakdown bar
+
+struct MemoryBreakdownBar: View {
+    let breakdown: MemoryBreakdown
+    let physical: UInt64
+
+    private var segments: [(color: Color, fraction: Double)] {
+        let total = Double(physical)
+        guard total > 0 else { return [] }
+        return [
+            (.rvMemWired,      Double(breakdown.wired) / total),
+            (.rvMemActive,     Double(breakdown.active) / total),
+            (.rvMemCompressed, Double(breakdown.compressed) / total),
+            (.rvMemInactive,   Double(breakdown.inactive) / total),
+        ]
+    }
+
+    var body: some View {
+        GeometryReader { geo in
+            HStack(spacing: 0) {
+                ForEach(Array(segments.enumerated()), id: \.offset) { _, seg in
+                    Rectangle()
+                        .fill(seg.color)
+                        .frame(width: max(0, geo.size.width * seg.fraction))
+                }
+                Spacer(minLength: 0)
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 2.5))
+            .background(RoundedRectangle(cornerRadius: 2.5).fill(Color.rvBarTrack))
+        }
+        .frame(height: 5)
+    }
+}
+
+// MARK: - Legend row
+
+struct MemoryBreakdownLegend: View {
+    let breakdown: MemoryBreakdown
+
+    var body: some View {
+        HStack(spacing: 8) {
+            legendItem("Wired", bytes: breakdown.wired, color: .rvMemWired)
+            legendItem("Active", bytes: breakdown.active, color: .rvMemActive)
+            legendItem("Compressed", bytes: breakdown.compressed, color: .rvMemCompressed)
+            legendItem("Inactive", bytes: breakdown.inactive, color: .rvMemInactive)
+            legendItem("Free", bytes: breakdown.free, color: .rvBarTrack)
+            Spacer()
+        }
+    }
+
+    private func legendItem(_ label: String, bytes: UInt64, color: Color) -> some View {
+        HStack(spacing: 3) {
+            Circle().fill(color).frame(width: 5, height: 5)
+            Text("\(label) \(shortMem(bytes))")
+                .font(.system(size: 9).monospacedDigit())
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private func shortMem(_ bytes: UInt64) -> String {
+        let gb = Double(bytes) / 1_073_741_824
+        if gb >= 1.0 { return String(format: "%.1fG", gb) }
+        return String(format: "%.0fM", Double(bytes) / 1_048_576)
     }
 }

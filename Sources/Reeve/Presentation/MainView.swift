@@ -38,7 +38,7 @@ struct ProcessesTab: View {
     @Environment(\.iconCache) private var iconCache
 
     @State private var sortOrder: [KeyPathComparator<ProcessRecord>] = [
-        KeyPathComparator(\ProcessRecord.residentMemory, order: .reverse)
+        KeyPathComparator(\ProcessRecord.effectiveMemory, order: .reverse)
     ]
     @State private var searchText = ""
     @State private var treeMode = false
@@ -127,11 +127,18 @@ struct ProcessesTab: View {
             }
             .width(66)
 
-            TableColumn("Memory", value: \.residentMemory) { proc in
+            TableColumn("Footprint", value: \.effectiveMemory) { proc in
                 Text(proc.formattedMemory)
                     .font(.body.monospacedDigit())
             }
             .width(86)
+
+            TableColumn("RSS", value: \.residentMemory) { proc in
+                Text(proc.formattedRSS)
+                    .font(.body.monospacedDigit())
+                    .foregroundStyle(.secondary)
+            }
+            .width(76)
 
             TableColumn("Disk Read", value: \.diskReadRate) { proc in
                 Text(proc.formattedDiskRead ?? "—")

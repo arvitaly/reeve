@@ -192,7 +192,8 @@ struct OverlayView: View {
             } else {
                 Color.clear.frame(width: 18)
                 sortHeader("CPU", mode: .cpu, width: 44)
-                sortHeader("Mem", mode: .memory, width: 60)
+                sortHeader("RSS", mode: .rss, width: 52)
+                sortHeader("Foot", mode: .memory, width: 60)
                 Color.clear.frame(width: 90)
             }
         }
@@ -592,7 +593,7 @@ struct OverlayView: View {
             )
         }
         if isExpanded && widgetMode == .expanded {
-            ForEach(group.processes.sorted { $0.residentMemory > $1.residentMemory }) { process in
+            ForEach(group.processes.sorted { ($0.physFootprint ?? $0.residentMemory) > ($1.physFootprint ?? $1.residentMemory) }) { process in
                 ProcessRow(process: process, sortMode: sortMode) {
                     pendingAction = .process(process)
                 }
@@ -606,6 +607,7 @@ struct OverlayView: View {
     private func sortedGroups(_ groups: [ApplicationGroup]) -> [ApplicationGroup] {
         switch sortMode {
         case .memory: return groups.sorted { $0.totalMemory > $1.totalMemory }
+        case .rss:    return groups.sorted { $0.totalRSS > $1.totalRSS }
         case .cpu:    return groups.sorted { $0.totalCPU > $1.totalCPU }
         case .disk:   return groups.sorted { $0.totalDiskWrite > $1.totalDiskWrite }
         }

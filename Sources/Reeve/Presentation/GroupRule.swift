@@ -48,7 +48,7 @@ struct GroupRuleSpec: Identifiable, Codable {
 
         var displayName: String {
             switch self {
-            case .totalMemoryAboveGB(let gb): return String(format: "Total mem > %.1f GB", gb)
+            case .totalMemoryAboveGB(let gb): return String(format: "Footprint > %.1f GB", gb)
             case .totalCPUAbove(let pct):     return "Total CPU > \(Int(pct))%"
             }
         }

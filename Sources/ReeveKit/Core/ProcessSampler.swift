@@ -107,6 +107,7 @@ public actor ProcessSampler {
                 residentMemory: taskInfo.pti_resident_size,
                 cpuPercent: cpuPercent,
                 parentPID: parentPID,
+                physFootprint: rusageOK == 0 ? rusage.ri_phys_footprint : nil,
                 diskReadRate: diskReadRate,
                 diskWriteRate: diskWriteRate,
                 isSuspended: isSuspended,
@@ -119,18 +120,19 @@ public actor ProcessSampler {
         lastSampleTime = now
 
         let totalCPU = processes.reduce(0.0) { $0 + $1.cpuPercent }
+        let breakdown = sampleMemoryBreakdown()
         return SystemSnapshot(
             processes: processes,
             sampledAt: .now,
             physicalMemory: physicalMemory,
-            usedMemory: sampleUsedMemory(),
+            usedMemory: breakdown.map { $0.used },
+            memoryBreakdown: breakdown,
             totalCPU: totalCPU
         )
     }
 
-    // host_statistics64 with HOST_VM_INFO64 gives wire + active + compressor pages —
-    // what Activity Monitor labels "Memory Used". Documented in <mach/host_info.h>.
-    private func sampleUsedMemory() -> UInt64? {
+    // host_statistics64 / HOST_VM_INFO64 — documented in <mach/host_info.h>.
+    private func sampleMemoryBreakdown() -> MemoryBreakdown? {
         var vmStats = vm_statistics64_data_t()
         var count = mach_msg_type_number_t(
             MemoryLayout<vm_statistics64_data_t>.size / MemoryLayout<integer_t>.size
@@ -141,9 +143,14 @@ public actor ProcessSampler {
             }
         }
         guard kr == KERN_SUCCESS else { return nil }
-        let pages = UInt64(vmStats.wire_count) + UInt64(vmStats.active_count)
-                  + UInt64(vmStats.compressor_page_count)
-        return pages * UInt64(vm_kernel_page_size)
+        let ps = UInt64(vm_kernel_page_size)
+        return MemoryBreakdown(
+            wired: UInt64(vmStats.wire_count) * ps,
+            active: UInt64(vmStats.active_count) * ps,
+            compressed: UInt64(vmStats.compressor_page_count) * ps,
+            inactive: UInt64(vmStats.inactive_count) * ps,
+            free: UInt64(vmStats.free_count) * ps
+        )
     }
 
     private func listAllPIDs() -> [pid_t] {
