@@ -55,7 +55,7 @@ struct PressureBar: View {
                 .frame(height: 5)
             }
             if let bd = snapshot.memoryBreakdown {
-                MemoryBreakdownLegend(breakdown: bd)
+                MemoryBreakdownLegend(breakdown: bd, physical: snapshot.physicalMemory)
             }
         }
     }
@@ -63,26 +63,39 @@ struct PressureBar: View {
 
 // MARK: - Stacked breakdown bar
 
+private struct MemSegment: Identifiable {
+    let id: String
+    let bytes: UInt64
+    let color: Color
+    var fraction: Double = 0
+}
+
+private func memSegments(_ bd: MemoryBreakdown, physical: UInt64) -> [MemSegment] {
+    var segs = [
+        MemSegment(id: "Apps", bytes: bd.appMemory, color: .rvMemActive),
+        MemSegment(id: "GPU", bytes: bd.gpuInUse, color: .purple.opacity(0.7)),
+        MemSegment(id: "Wired", bytes: bd.wired, color: .rvMemWired),
+        MemSegment(id: "Compressed", bytes: bd.compressed, color: .rvMemCompressed),
+        MemSegment(id: "Cached", bytes: bd.cached, color: .rvMemInactive),
+        MemSegment(id: "Free", bytes: bd.free, color: .rvBarTrack),
+    ]
+    .filter { $0.bytes > 0 }
+    .sorted { $0.bytes > $1.bytes }
+    let total = Double(physical)
+    guard total > 0 else { return segs }
+    for i in segs.indices { segs[i].fraction = Double(segs[i].bytes) / total }
+    return segs
+}
+
 struct MemoryBreakdownBar: View {
     let breakdown: MemoryBreakdown
     let physical: UInt64
 
-    private var segments: [(color: Color, fraction: Double)] {
-        let total = Double(physical)
-        guard total > 0 else { return [] }
-        let cached = Double(breakdown.active) + Double(breakdown.inactive) - Double(breakdown.appMemory)
-        return [
-            (.rvMemWired,      Double(breakdown.wired) / total),
-            (.rvMemActive,     Double(breakdown.appMemory) / total),
-            (.rvMemCompressed, Double(breakdown.compressed) / total),
-            (.rvMemInactive,   max(0, cached) / total),
-        ]
-    }
-
     var body: some View {
+        let segs = memSegments(breakdown, physical: physical)
         GeometryReader { geo in
             HStack(spacing: 0) {
-                ForEach(Array(segments.enumerated()), id: \.offset) { _, seg in
+                ForEach(segs) { seg in
                     Rectangle()
                         .fill(seg.color)
                         .frame(width: max(0, geo.size.width * seg.fraction))
@@ -100,26 +113,20 @@ struct MemoryBreakdownBar: View {
 
 struct MemoryBreakdownLegend: View {
     let breakdown: MemoryBreakdown
+    let physical: UInt64
 
     var body: some View {
+        let segs = memSegments(breakdown, physical: physical)
         HStack(spacing: 8) {
-            let cached = (breakdown.active + breakdown.inactive) > breakdown.appMemory
-                ? (breakdown.active + breakdown.inactive - breakdown.appMemory) : 0
-            legendItem("Apps", bytes: breakdown.appMemory, color: .rvMemActive)
-            legendItem("Wired", bytes: breakdown.wired, color: .rvMemWired)
-            legendItem("Compressed", bytes: breakdown.compressed, color: .rvMemCompressed)
-            legendItem("Cached", bytes: cached, color: .rvMemInactive)
-            legendItem("Free", bytes: breakdown.free, color: .rvBarTrack)
+            ForEach(segs) { seg in
+                HStack(spacing: 3) {
+                    Circle().fill(seg.color).frame(width: 5, height: 5)
+                    Text("\(seg.id) \(shortMem(seg.bytes))")
+                        .font(.system(size: 9).monospacedDigit())
+                        .foregroundStyle(.secondary)
+                }
+            }
             Spacer()
-        }
-    }
-
-    private func legendItem(_ label: String, bytes: UInt64, color: Color) -> some View {
-        HStack(spacing: 3) {
-            Circle().fill(color).frame(width: 5, height: 5)
-            Text("\(label) \(shortMem(bytes))")
-                .font(.system(size: 9).monospacedDigit())
-                .foregroundStyle(.secondary)
         }
     }
 

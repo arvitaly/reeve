@@ -1,5 +1,6 @@
 @preconcurrency import Darwin
 import Foundation
+import IOKit
 
 private let kPageSize = UInt64(vm_kernel_page_size)
 
@@ -155,8 +156,32 @@ public actor ProcessSampler {
             compressed: UInt64(vmStats.compressor_page_count) * ps,
             inactive: UInt64(vmStats.inactive_count) * ps,
             free: UInt64(vmStats.free_count) * ps,
-            appMemory: internal_ > purgeable ? internal_ - purgeable : 0
+            appMemory: internal_ > purgeable ? internal_ - purgeable : 0,
+            gpuInUse: Self.sampleGPUMemory()
         )
+    }
+
+    /// IOKit IOAccelerator → PerformanceStatistics → "In use system memory".
+    /// Documented in IOKit.framework; property keys visible via `ioreg -r -c IOAccelerator`.
+    private static func sampleGPUMemory() -> UInt64 {
+        var iterator: io_iterator_t = 0
+        guard let matching = IOServiceMatching("IOAccelerator") else { return 0 }
+        guard IOServiceGetMatchingServices(kIOMainPortDefault, matching, &iterator) == KERN_SUCCESS else { return 0 }
+        defer { IOObjectRelease(iterator) }
+        var total: UInt64 = 0
+        var entry = IOIteratorNext(iterator)
+        while entry != 0 {
+            var props: Unmanaged<CFMutableDictionary>?
+            if IORegistryEntryCreateCFProperties(entry, &props, kCFAllocatorDefault, 0) == KERN_SUCCESS,
+               let dict = props?.takeRetainedValue() as? [String: Any],
+               let stats = dict["PerformanceStatistics"] as? [String: Any],
+               let inUse = stats["In use system memory"] as? UInt64 {
+                total += inUse
+            }
+            IOObjectRelease(entry)
+            entry = IOIteratorNext(iterator)
+        }
+        return total
     }
 
     private func listAllPIDs() -> [pid_t] {

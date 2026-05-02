@@ -86,14 +86,21 @@ public struct MemoryBreakdown: Sendable {
     public let inactive: UInt64
     public let free: UInt64
     public let appMemory: UInt64
+    public let gpuInUse: UInt64
 
     public var used: UInt64 { appMemory + wired + compressed }
+    public var cached: UInt64 {
+        let total = active + inactive
+        return total > appMemory ? total - appMemory : 0
+    }
     public var total: UInt64 { wired + active + compressed + inactive + free }
 
     public init(wired: UInt64, active: UInt64, compressed: UInt64,
-                inactive: UInt64, free: UInt64, appMemory: UInt64) {
+                inactive: UInt64, free: UInt64, appMemory: UInt64,
+                gpuInUse: UInt64 = 0) {
         self.wired = wired; self.active = active; self.compressed = compressed
         self.inactive = inactive; self.free = free; self.appMemory = appMemory
+        self.gpuInUse = gpuInUse
     }
 }
 
