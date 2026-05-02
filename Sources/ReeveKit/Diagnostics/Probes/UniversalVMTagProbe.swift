@@ -10,23 +10,30 @@ public struct UniversalVMTagProbe: DiagnosticProbe, Sendable {
         let pids = context.processes.map(\.pid)
         guard !pids.isEmpty else { return [] }
         let categories = RegionInspector.inspectAll(pids: pids)
-        guard !categories.isEmpty else { return [] }
+        guard !categories.isEmpty else {
+            return [Finding(
+                cause: "Detailed breakdown unavailable",
+                evidence: "PROC_PIDREGIONPATHINFO is denied for root-owned / cross-user processes. phys_footprint via top is the only attribution we can give here.",
+                severity: .info
+            )]
+        }
 
         let totalResident = categories.reduce(0 as UInt64) { $0 + $1.residentBytes }
         guard totalResident > 0 else { return [] }
 
         var findings: [Finding] = []
 
-        let top = categories.prefix(5)
-        let breakdown = top.map { cat in
+        let significant = categories.filter { $0.residentBytes >= 10 * 1024 * 1024 }
+        let summary = (significant.isEmpty ? Array(categories.prefix(5)) : significant)
+        let breakdown = summary.map { cat in
             let mb = cat.residentBytes / (1024 * 1024)
             let pct = totalResident > 0 ? Int(cat.residentBytes * 100 / totalResident) : 0
-            return "\(cat.label): \(mb) MB (\(pct)%)"
-        }.joined(separator: ", ")
+            return "\(cat.label) \(mb)M (\(pct)%)"
+        }.joined(separator: " · ")
 
         findings.append(Finding(
-            cause: "Resident by category",
-            evidence: breakdown,
+            cause: "Resident by VM tag",
+            evidence: "\(breakdown). via PROC_PIDREGIONPATHINFO — sum is RSS, not phys_footprint.",
             severity: .info
         ))
 
