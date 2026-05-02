@@ -70,11 +70,12 @@ struct MemoryBreakdownBar: View {
     private var segments: [(color: Color, fraction: Double)] {
         let total = Double(physical)
         guard total > 0 else { return [] }
+        let cached = Double(breakdown.active) + Double(breakdown.inactive) - Double(breakdown.appMemory)
         return [
             (.rvMemWired,      Double(breakdown.wired) / total),
-            (.rvMemActive,     Double(breakdown.active) / total),
+            (.rvMemActive,     Double(breakdown.appMemory) / total),
             (.rvMemCompressed, Double(breakdown.compressed) / total),
-            (.rvMemInactive,   Double(breakdown.inactive) / total),
+            (.rvMemInactive,   max(0, cached) / total),
         ]
     }
 
@@ -102,10 +103,12 @@ struct MemoryBreakdownLegend: View {
 
     var body: some View {
         HStack(spacing: 8) {
+            let cached = (breakdown.active + breakdown.inactive) > breakdown.appMemory
+                ? (breakdown.active + breakdown.inactive - breakdown.appMemory) : 0
+            legendItem("Apps", bytes: breakdown.appMemory, color: .rvMemActive)
             legendItem("Wired", bytes: breakdown.wired, color: .rvMemWired)
-            legendItem("Active", bytes: breakdown.active, color: .rvMemActive)
             legendItem("Compressed", bytes: breakdown.compressed, color: .rvMemCompressed)
-            legendItem("Inactive", bytes: breakdown.inactive, color: .rvMemInactive)
+            legendItem("Cached", bytes: cached, color: .rvMemInactive)
             legendItem("Free", bytes: breakdown.free, color: .rvBarTrack)
             Spacer()
         }

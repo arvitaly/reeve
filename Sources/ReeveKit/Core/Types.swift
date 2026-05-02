@@ -85,13 +85,15 @@ public struct MemoryBreakdown: Sendable {
     public let compressed: UInt64
     public let inactive: UInt64
     public let free: UInt64
+    public let appMemory: UInt64
 
-    public var used: UInt64 { wired + active + compressed }
+    public var used: UInt64 { appMemory + wired + compressed }
     public var total: UInt64 { wired + active + compressed + inactive + free }
 
-    public init(wired: UInt64, active: UInt64, compressed: UInt64, inactive: UInt64, free: UInt64) {
+    public init(wired: UInt64, active: UInt64, compressed: UInt64,
+                inactive: UInt64, free: UInt64, appMemory: UInt64) {
         self.wired = wired; self.active = active; self.compressed = compressed
-        self.inactive = inactive; self.free = free
+        self.inactive = inactive; self.free = free; self.appMemory = appMemory
     }
 }
 

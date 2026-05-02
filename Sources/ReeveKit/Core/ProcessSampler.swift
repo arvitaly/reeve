@@ -147,12 +147,15 @@ public actor ProcessSampler {
         }
         guard kr == KERN_SUCCESS else { return nil }
         let ps = kPageSize
+        let internal_ = UInt64(vmStats.internal_page_count) * ps
+        let purgeable = UInt64(vmStats.purgeable_count) * ps
         return MemoryBreakdown(
             wired: UInt64(vmStats.wire_count) * ps,
             active: UInt64(vmStats.active_count) * ps,
             compressed: UInt64(vmStats.compressor_page_count) * ps,
             inactive: UInt64(vmStats.inactive_count) * ps,
-            free: UInt64(vmStats.free_count) * ps
+            free: UInt64(vmStats.free_count) * ps,
+            appMemory: internal_ > purgeable ? internal_ - purgeable : 0
         )
     }
 
