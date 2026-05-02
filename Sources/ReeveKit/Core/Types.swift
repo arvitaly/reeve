@@ -118,6 +118,8 @@ public struct SystemSnapshot: Sendable {
     public let memoryBreakdown: MemoryBreakdown?
     /// Sum of all process CPU percentages.
     public let totalCPU: Double
+    /// Sum of physFootprint across all sampled processes. Processes returning EPERM are excluded.
+    public let processFootprintSum: UInt64
 
     public init(
         processes: [ProcessRecord],
@@ -125,7 +127,8 @@ public struct SystemSnapshot: Sendable {
         physicalMemory: UInt64 = ProcessInfo.processInfo.physicalMemory,
         usedMemory: UInt64? = nil,
         memoryBreakdown: MemoryBreakdown? = nil,
-        totalCPU: Double = 0
+        totalCPU: Double = 0,
+        processFootprintSum: UInt64 = 0
     ) {
         self.processes = processes
         self.sampledAt = sampledAt
@@ -133,6 +136,7 @@ public struct SystemSnapshot: Sendable {
         self.usedMemory = usedMemory
         self.memoryBreakdown = memoryBreakdown
         self.totalCPU = totalCPU
+        self.processFootprintSum = processFootprintSum
     }
 
     /// An empty snapshot used as the initial published state before the first poll.

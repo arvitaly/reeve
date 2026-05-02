@@ -57,8 +57,8 @@ struct PressureBar: View {
                     .font(RVFont.mono(size: 10))
                     .foregroundStyle(Color.rvTextFaint)
             }
-            if let bd = snapshot.memoryBreakdown {
-                MemoryBreakdownBar(breakdown: bd, physical: snapshot.physicalMemory)
+            if snapshot.memoryBreakdown != nil {
+                MemoryBreakdownBar(snapshot: snapshot)
             } else {
                 GeometryReader { geo in
                     ZStack(alignment: .leading) {
@@ -71,8 +71,8 @@ struct PressureBar: View {
                 }
                 .frame(height: 10)
             }
-            if let bd = snapshot.memoryBreakdown {
-                MemoryBreakdownLegend(breakdown: bd, physical: snapshot.physicalMemory)
+            if snapshot.memoryBreakdown != nil {
+                MemoryBreakdownLegend(snapshot: snapshot)
             }
         }
     }
@@ -87,9 +87,14 @@ private struct MemSegment: Identifiable {
     var fraction: Double = 0
 }
 
-private func memSegments(_ bd: MemoryBreakdown, physical: UInt64) -> [MemSegment] {
+private func memSegments(_ snapshot: SystemSnapshot) -> [MemSegment] {
+    guard let bd = snapshot.memoryBreakdown else { return [] }
+    let physical = snapshot.physicalMemory
+    let procsBytes = min(snapshot.processFootprintSum, bd.appMemory)
+    let kernelBytes = bd.appMemory - procsBytes
     var segs = [
-        MemSegment(id: "Apps", bytes: bd.appMemory, color: .rvMemActive),
+        MemSegment(id: "Apps", bytes: procsBytes, color: .rvMemActive),
+        MemSegment(id: "Kernel", bytes: kernelBytes, color: .rvMemActive.opacity(0.5)),
         MemSegment(id: "GPU", bytes: bd.gpuInUse, color: .purple.opacity(0.7)),
         MemSegment(id: "Wired", bytes: bd.wired, color: .rvMemWired),
         MemSegment(id: "Compr", bytes: bd.compressed, color: .rvMemCompressed),
@@ -105,11 +110,10 @@ private func memSegments(_ bd: MemoryBreakdown, physical: UInt64) -> [MemSegment
 }
 
 struct MemoryBreakdownBar: View {
-    let breakdown: MemoryBreakdown
-    let physical: UInt64
+    let snapshot: SystemSnapshot
 
     var body: some View {
-        let segs = memSegments(breakdown, physical: physical)
+        let segs = memSegments(snapshot)
         GeometryReader { geo in
             HStack(spacing: 0) {
                 ForEach(segs) { seg in
@@ -129,11 +133,10 @@ struct MemoryBreakdownBar: View {
 // MARK: - Legend row
 
 struct MemoryBreakdownLegend: View {
-    let breakdown: MemoryBreakdown
-    let physical: UInt64
+    let snapshot: SystemSnapshot
 
     var body: some View {
-        let segs = memSegments(breakdown, physical: physical)
+        let segs = memSegments(snapshot)
         FlowLayout(spacing: 6) {
             ForEach(segs) { seg in
                 HStack(spacing: 2) {

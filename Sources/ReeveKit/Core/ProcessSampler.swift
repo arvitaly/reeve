@@ -124,6 +124,7 @@ public actor ProcessSampler {
         lastSampleTime = now
 
         let totalCPU = processes.reduce(0.0) { $0 + $1.cpuPercent }
+        let footprintSum = processes.reduce(UInt64(0)) { $0 + ($1.physFootprint ?? 0) }
         let breakdown = sampleMemoryBreakdown()
         return SystemSnapshot(
             processes: processes,
@@ -131,7 +132,8 @@ public actor ProcessSampler {
             physicalMemory: physicalMemory,
             usedMemory: breakdown.map { $0.used },
             memoryBreakdown: breakdown,
-            totalCPU: totalCPU
+            totalCPU: totalCPU,
+            processFootprintSum: footprintSum
         )
     }
 
