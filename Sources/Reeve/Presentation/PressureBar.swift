@@ -91,12 +91,14 @@ private func memSegments(_ snapshot: SystemSnapshot) -> [MemSegment] {
     guard let bd = snapshot.memoryBreakdown else { return [] }
     let physical = snapshot.physicalMemory
     let procsBytes = min(snapshot.processFootprintSum, bd.appMemory)
-    let daemonBytes = min(snapshot.epermProcessRSS, bd.appMemory.subtractingClamped(procsBytes))
-    let systemBytes = bd.appMemory.subtractingClamped(procsBytes + daemonBytes)
+    let epermBytes = min(snapshot.epermProcessRSS, bd.appMemory.subtractingClamped(procsBytes))
+    let gapBytes = bd.appMemory.subtractingClamped(procsBytes + epermBytes)
+    let daemonRSS = min(snapshot.invisibleRSSSum, gapBytes)
+    let kernelBytes = gapBytes.subtractingClamped(daemonRSS)
     let used: [MemSegment] = [
         MemSegment(id: "Apps", bytes: procsBytes, color: .rvMemActive),
-        MemSegment(id: "Daemons", bytes: daemonBytes, color: .orange.opacity(0.6)),
-        MemSegment(id: "System", bytes: systemBytes, color: .gray.opacity(0.5)),
+        MemSegment(id: "Daemons", bytes: daemonRSS, color: .orange.opacity(0.6)),
+        MemSegment(id: "Kernel", bytes: kernelBytes, color: .gray.opacity(0.5)),
         MemSegment(id: "GPU", bytes: bd.gpuInUse, color: .purple.opacity(0.7)),
         MemSegment(id: "Wired", bytes: bd.wired, color: .rvMemWired),
         MemSegment(id: "Compr", bytes: bd.compressed, color: .rvMemCompressed),

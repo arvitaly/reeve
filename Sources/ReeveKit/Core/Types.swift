@@ -161,6 +161,11 @@ public struct SystemSnapshot: Sendable {
         self.invisibleProcesses = invisibleProcesses
     }
 
+    /// Sum of RSS across invisible processes (from ps).
+    public var invisibleRSSSum: UInt64 {
+        invisibleProcesses.reduce(0) { $0 + $1.rssBytes }
+    }
+
     /// Memory attributable to invisible processes + kernel (gap between vm_stat and measured footprints).
     public var systemMemory: UInt64 {
         guard let bd = memoryBreakdown else { return 0 }
