@@ -1,4 +1,5 @@
 import AppKit
+import CoreGraphics
 import Darwin
 import SwiftUI
 import ReeveKit
@@ -164,7 +165,22 @@ private func parentPIDOf(_ pid: pid_t) -> pid_t {
 }
 
 private func tabGroupName(terminalName: String, shell: ProcessTreeNode) -> String {
-    let top = shell.flattened()
+    let allNodes = shell.flattened()
+    let shellNode = allNodes.first { shellNames.contains($0.record.name.lowercased()) }
+    let cwdPID = shellNode?.record.pid ?? shell.record.pid
+
+    if let cwd = ProcessIdentity.cwd(pid: cwdPID), cwd != "/" {
+        let short = ProcessIdentity.shortenPath(cwd)
+        let top = allNodes
+            .filter { !shellNames.contains($0.record.name.lowercased()) }
+            .max(by: { $0.record.residentMemory < $1.record.residentMemory })
+        if let topName = top?.record.name {
+            return "\(terminalName): \(short) · \(topName)"
+        }
+        return "\(terminalName): \(short)"
+    }
+
+    let top = allNodes
         .filter { !shellNames.contains($0.record.name.lowercased()) }
         .max(by: { $0.record.residentMemory < $1.record.residentMemory })
     return "\(terminalName): \(top?.record.name ?? shell.record.name)"
@@ -215,6 +231,65 @@ private func resolveTerminalTabs(
     return groups
 }
 
+// MARK: - Window title cache
+
+/// Single CGWindowListCopyWindowInfo call per refresh, shared across all groups.
+/// kCGWindowName requires Screen Recording on macOS 14+ — returns empty when denied.
+/// Documented in <CoreGraphics/CGWindow.h>.
+enum WindowTitleCache {
+    static func refresh() -> [pid_t: String] {
+        guard let list = CGWindowListCopyWindowInfo(
+            [.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID
+        ) as? [[String: Any]] else { return [:] }
+
+        var result: [pid_t: String] = [:]
+        for entry in list {
+            guard let ownerPID = entry[kCGWindowOwnerPID as String] as? Int,
+                  let name = entry[kCGWindowName as String] as? String,
+                  !name.isEmpty else { continue }
+            let pid = pid_t(ownerPID)
+            if result[pid] == nil { result[pid] = name }
+        }
+        return result
+    }
+}
+
+private let browserBundlePrefixes = [
+    "com.google.Chrome", "com.brave.Browser", "com.vivaldi.Vivaldi",
+    "com.microsoft.edgemac", "com.operasoftware.Opera",
+]
+
+private func enrichedDisplayName(
+    baseName: String, bundleID: String?, pid: pid_t,
+    allPIDs: Set<pid_t>, windowTitles: [pid_t: String]
+) -> String {
+    // Chromium browsers: detect profile from renderer argv (sample ≤8 to bound syscalls)
+    if let bid = bundleID, browserBundlePrefixes.contains(where: { bid.hasPrefix($0) }) {
+        var profiles: Set<String> = []
+        for childPID in allPIDs.sorted().prefix(8) {
+            if let profile = ProcessIdentity.chromeProfile(pid: childPID) {
+                profiles.insert(profile)
+                if profiles.count > 2 { break }
+            }
+        }
+        let named = profiles.subtracting(["Default"])
+        if named.count == 1, let profile = named.first {
+            return "\(baseName) · \(profile)"
+        } else if named.count > 1 {
+            return "\(baseName) · \(profiles.count) profiles"
+        }
+    }
+
+    // Window title enrichment (requires Screen Recording permission)
+    if let title = windowTitles[pid], title != baseName,
+       !title.hasPrefix(baseName) {
+        let trimmed = title.count > 40 ? String(title.prefix(37)) + "…" : title
+        return "\(baseName) · \(trimmed)"
+    }
+
+    return baseName
+}
+
 /// Groups snapshot processes by NSRunningApplication ownership.
 ///
 /// Each NSRunningApplication anchors a subtree in the process tree — all descendants
@@ -228,6 +303,8 @@ func buildApplicationGroups(snapshot: SystemSnapshot) -> (apps: [ApplicationGrou
     for root in tree {
         for node in root.flattened() { nodeByPID[node.record.pid] = node }
     }
+
+    let windowTitles = WindowTitleCache.refresh()
 
     var claimed: Set<pid_t> = []
     var apps: [ApplicationGroup] = []
@@ -244,7 +321,7 @@ func buildApplicationGroups(snapshot: SystemSnapshot) -> (apps: [ApplicationGrou
             )
             if !tabs.isEmpty {
                 apps.append(contentsOf: tabs)
-                continue  // terminal app process itself stays unclaimed → system
+                continue
             }
         }
 
@@ -252,9 +329,19 @@ func buildApplicationGroups(snapshot: SystemSnapshot) -> (apps: [ApplicationGrou
         let pids = Set(procs.map { $0.pid })
         guard claimed.isDisjoint(with: pids) else { continue }
         claimed.formUnion(pids)
+
+        let baseName = app.localizedName ?? rootNode.record.name
+        let enrichedName = enrichedDisplayName(
+            baseName: baseName,
+            bundleID: app.bundleIdentifier,
+            pid: pid,
+            allPIDs: pids,
+            windowTitles: windowTitles
+        )
+
         apps.append(ApplicationGroup(
             id: pid,
-            displayName: app.localizedName ?? rootNode.record.name,
+            displayName: enrichedName,
             bundleIdentifier: app.bundleIdentifier,
             icon: app.icon,
             category: categorize(bundleID: app.bundleIdentifier),

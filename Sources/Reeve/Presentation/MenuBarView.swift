@@ -240,6 +240,7 @@ struct AppsListView: View {
     @State private var toastMessage: String?
     @State private var toastTask: Task<Void, Never>?
     @State private var pendingAction: AppAction?
+    @State private var diagnosticCache = DiagnosticCache()
 
     private static let systemLimit = 5
 
@@ -451,6 +452,17 @@ struct AppsListView: View {
             )
         }
         if expanded {
+            DiagnosticPanel(
+                context: ProbeContext(
+                    bundleID: group.bundleIdentifier,
+                    displayName: group.displayName,
+                    processes: group.processes,
+                    totalMemory: group.totalMemory,
+                    snapshot: engine.snapshot
+                ),
+                cache: diagnosticCache
+            )
+            .padding(.horizontal, 10)
             ForEach(group.processes.sorted { ($0.physFootprint ?? $0.residentMemory) > ($1.physFootprint ?? $1.residentMemory) }) { process in
                 ProcessRow(process: process, sortMode: sortMode) {
                     pendingAction = .process(process)
