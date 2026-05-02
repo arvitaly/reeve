@@ -7,11 +7,25 @@ public struct InvisibleProcess: Sendable, Identifiable {
     public let pid: pid_t
     public let name: String
     public let uid: UInt32
-    public let rssBytes: UInt64
+    /// Best available memory estimate.
+    /// `.footprint` — phys_footprint via `top` (private com.apple.system-task-ports.read),
+    /// matches what proc_pid_rusage would return if it were not denied by EPERM.
+    /// `.rss` — fallback when `top` hasn't run yet or the PID isn't in its snapshot.
+    /// RSS includes shared library pages so the per-process value overcounts when summed.
+    public let memoryBytes: UInt64
+    public let memorySource: MemorySource
     public var id: pid_t { pid }
 
-    public init(pid: pid_t, name: String, uid: UInt32, rssBytes: UInt64 = 0) {
-        self.pid = pid; self.name = name; self.uid = uid; self.rssBytes = rssBytes
+    public enum MemorySource: Sendable, Equatable {
+        case footprint
+        case rss
+        case none
+    }
+
+    public init(pid: pid_t, name: String, uid: UInt32,
+                memoryBytes: UInt64 = 0, memorySource: MemorySource = .none) {
+        self.pid = pid; self.name = name; self.uid = uid
+        self.memoryBytes = memoryBytes; self.memorySource = memorySource
     }
 }
 
@@ -161,9 +175,20 @@ public struct SystemSnapshot: Sendable {
         self.invisibleProcesses = invisibleProcesses
     }
 
-    /// Sum of RSS across invisible processes (from ps).
-    public var invisibleRSSSum: UInt64 {
-        invisibleProcesses.reduce(0) { $0 + $1.rssBytes }
+    /// Sum of memory across invisible processes. When `top` has run, this is
+    /// phys_footprint and reconciles with vm_stat's anonymous accounting.
+    /// On the RSS fallback path it overcounts shared pages.
+    public var invisibleMemorySum: UInt64 {
+        invisibleProcesses.reduce(0) { $0 + $1.memoryBytes }
+    }
+    /// Sum of phys_footprint across invisible processes — only the entries `top` has
+    /// populated. Excludes RSS-fallback rows so it never overcounts shared pages.
+    public var invisibleFootprintSum: UInt64 {
+        invisibleProcesses.reduce(0) { $1.memorySource == .footprint ? $0 + $1.memoryBytes : $0 }
+    }
+    /// True when at least one invisible process has phys_footprint data — i.e., top has run.
+    public var hasInvisibleFootprint: Bool {
+        invisibleProcesses.contains { $0.memorySource == .footprint }
     }
 
     /// Memory attributable to invisible processes + kernel (gap between vm_stat and measured footprints).

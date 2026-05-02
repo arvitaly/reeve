@@ -21,7 +21,32 @@ public actor ProcessSampler {
     // ProcessInfo.processInfo.physicalMemory is a constant on a running machine
     private let physicalMemory: UInt64 = ProcessInfo.processInfo.physicalMemory
 
+    /// Per-PID phys_footprint cached from `top`. Refreshed off-actor every `topRefreshInterval`.
+    /// Empty until first refresh completes (~1.5 s after first sample).
+    private var topFootprint: [pid_t: UInt64] = [:]
+    private var topRefreshedAt: ContinuousClock.Instant = .now - .seconds(120)
+    private var topRefreshInFlight: Bool = false
+    private let topRefreshInterval: Duration = .seconds(15)
+
     public init() {}
+
+    /// Off-actor execution + actor-isolated update. Invoked from `sample()` when stale.
+    private func runTopRefresh() {
+        guard !topRefreshInFlight else { return }
+        let now = ContinuousClock.now
+        guard now - topRefreshedAt >= topRefreshInterval else { return }
+        topRefreshInFlight = true
+        Task.detached(priority: .background) { [weak self] in
+            let map = TopParser.snapshot()
+            await self?.acceptTopRefresh(map: map)
+        }
+    }
+
+    private func acceptTopRefresh(map: [pid_t: UInt64]) {
+        topFootprint = map
+        topRefreshedAt = .now
+        topRefreshInFlight = false
+    }
 
     /// Captures a `SystemSnapshot` with current CPU, memory, and disk I/O for every
     /// visible process.
@@ -130,6 +155,7 @@ public actor ProcessSampler {
         let visiblePIDs = Set(processes.map { $0.pid })
         let invisible = collectInvisibleProcesses(allPIDs: pids, visiblePIDs: visiblePIDs)
         let breakdown = sampleMemoryBreakdown()
+        runTopRefresh()
         return SystemSnapshot(
             processes: processes,
             sampledAt: .now,
@@ -194,6 +220,7 @@ public actor ProcessSampler {
 
     private func collectInvisibleProcesses(allPIDs: [pid_t], visiblePIDs: Set<pid_t>) -> [InvisibleProcess] {
         let rssMap = Self.psRSSMap()
+        let footprint = topFootprint
         return allPIDs.compactMap { pid -> InvisibleProcess? in
             guard !visiblePIDs.contains(pid) else { return nil }
             var bsd = proc_bsdshortinfo()
@@ -203,7 +230,20 @@ public actor ProcessSampler {
                 ptr.withMemoryRebound(to: CChar.self, capacity: 16) { String(cString: $0) }
             }
             guard !name.isEmpty else { return nil }
-            return InvisibleProcess(pid: pid, name: name, uid: bsd.pbsi_uid, rssBytes: rssMap[pid] ?? 0)
+            let bytes: UInt64
+            let source: InvisibleProcess.MemorySource
+            if let fp = footprint[pid] {
+                bytes = fp
+                source = .footprint
+            } else if let rss = rssMap[pid] {
+                bytes = rss
+                source = .rss
+            } else {
+                bytes = 0
+                source = .none
+            }
+            return InvisibleProcess(pid: pid, name: name, uid: bsd.pbsi_uid,
+                                    memoryBytes: bytes, memorySource: source)
         }
     }
 

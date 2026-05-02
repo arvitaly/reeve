@@ -575,7 +575,9 @@ private struct CalmRow: View {
                     .foregroundStyle(Color.rvTextFaint)
                     .padding(.top, 2)
             }
-            Text("RSS includes shared pages — sizes approximate, ranking reliable.")
+            Text(group.approximateMemory
+                 ? "RSS includes shared pages — sizes approximate, ranking reliable."
+                 : "phys_footprint via top — refreshed every 15s.")
                 .font(.system(size: 9))
                 .foregroundStyle(Color.rvTextFaint)
                 .padding(.top, 4)

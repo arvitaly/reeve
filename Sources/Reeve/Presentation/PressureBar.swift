@@ -90,7 +90,8 @@ private struct MemSegment: Identifiable {
 private func memSegments(_ snapshot: SystemSnapshot) -> [MemSegment] {
     guard let bd = snapshot.memoryBreakdown else { return [] }
     let physical = snapshot.physicalMemory
-    let procsBytes = min(snapshot.processFootprintSum, bd.appMemory)
+    let attributed = snapshot.processFootprintSum + snapshot.invisibleFootprintSum
+    let procsBytes = min(attributed, bd.appMemory)
     let other = bd.appMemory.subtractingClamped(procsBytes)
     let used: [MemSegment] = [
         MemSegment(id: "Apps", bytes: procsBytes, color: .rvMemActive),

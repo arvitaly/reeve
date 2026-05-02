@@ -22,6 +22,10 @@ struct ApplicationGroup: Identifiable {
     let icon: NSImage?
     let category: AppCategory
     let processes: [ProcessRecord]
+    /// True when this group's totalMemory is computed from data that overcounts shared
+    /// pages (RSS fallback). Synthetic macOS System group uses this until `top` provides
+    /// phys_footprint for every invisible process in the group.
+    var approximateMemory: Bool = false
 
     /// Footprint-based total (compressed + resident + IOKit). Falls back to RSS per-process
     /// when rusage returned EPERM.
@@ -38,14 +42,12 @@ struct ApplicationGroup: Identifiable {
 
     var formattedMemory: String {
         let raw = ByteCountFormatter.string(fromByteCount: Int64(totalMemory), countStyle: .memory)
-        return isApproximate ? "~\(raw)" : raw
+        return approximateMemory ? "~\(raw)" : raw
     }
     var formattedRSS: String {
         ByteCountFormatter.string(fromByteCount: Int64(totalRSS), countStyle: .memory)
     }
     var formattedCPU: String { String(format: "%.1f%%", totalCPU) }
-    /// Synthetic macOS System group — its RSS sum overcounts shared pages and isn't authoritative.
-    var isApproximate: Bool { id == 0 }
 }
 
 // Terminal apps are split per-tab. Terminal.app spawns shells via root-owned `login`
@@ -353,21 +355,23 @@ func buildApplicationGroups(snapshot: SystemSnapshot) -> (apps: [ApplicationGrou
     }
 
     if !snapshot.invisibleProcesses.isEmpty {
-        let sorted = snapshot.invisibleProcesses.sorted { $0.rssBytes > $1.rssBytes }
+        let sorted = snapshot.invisibleProcesses.sorted { $0.memoryBytes > $1.memoryBytes }
         let procs = sorted.map { inv in
             ProcessRecord(
                 pid: inv.pid, name: inv.name,
-                residentMemory: inv.rssBytes, cpuPercent: 0,
-                physFootprint: inv.rssBytes
+                residentMemory: inv.memoryBytes, cpuPercent: 0,
+                physFootprint: inv.memoryBytes
             )
         }
+        let anyRSSFallback = sorted.contains { $0.memorySource != .footprint }
         apps.append(ApplicationGroup(
             id: 0,
             displayName: "macOS System (\(procs.count))",
             bundleIdentifier: nil,
             icon: NSImage(systemSymbolName: "gearshape.2.fill", accessibilityDescription: nil),
             category: .system,
-            processes: procs
+            processes: procs,
+            approximateMemory: anyRSSFallback
         ))
     }
 
