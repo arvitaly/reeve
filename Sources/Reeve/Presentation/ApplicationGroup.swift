@@ -37,12 +37,15 @@ struct ApplicationGroup: Identifiable {
     var maxNiceValue: Int32 { processes.map { $0.niceValue }.max() ?? 0 }
 
     var formattedMemory: String {
-        ByteCountFormatter.string(fromByteCount: Int64(totalMemory), countStyle: .memory)
+        let raw = ByteCountFormatter.string(fromByteCount: Int64(totalMemory), countStyle: .memory)
+        return isApproximate ? "~\(raw)" : raw
     }
     var formattedRSS: String {
         ByteCountFormatter.string(fromByteCount: Int64(totalRSS), countStyle: .memory)
     }
     var formattedCPU: String { String(format: "%.1f%%", totalCPU) }
+    /// Synthetic macOS System group — its RSS sum overcounts shared pages and isn't authoritative.
+    var isApproximate: Bool { id == 0 }
 }
 
 // Terminal apps are split per-tab. Terminal.app spawns shells via root-owned `login`

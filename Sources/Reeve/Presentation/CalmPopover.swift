@@ -575,6 +575,10 @@ private struct CalmRow: View {
                     .foregroundStyle(Color.rvTextFaint)
                     .padding(.top, 2)
             }
+            Text("RSS includes shared pages — sizes approximate, ranking reliable.")
+                .font(.system(size: 9))
+                .foregroundStyle(Color.rvTextFaint)
+                .padding(.top, 4)
         }
         .padding(10)
         .background(Color.rvInputBg, in: RoundedRectangle(cornerRadius: 8))

@@ -90,14 +90,11 @@ private struct MemSegment: Identifiable {
 private func memSegments(_ snapshot: SystemSnapshot) -> [MemSegment] {
     guard let bd = snapshot.memoryBreakdown else { return [] }
     let physical = snapshot.physicalMemory
-    let measured = snapshot.processFootprintSum + snapshot.epermProcessRSS + snapshot.invisibleRSSSum
     let procsBytes = min(snapshot.processFootprintSum, bd.appMemory)
-    let daemonRSS = snapshot.invisibleRSSSum
-    let untraced = bd.appMemory.subtractingClamped(min(measured, bd.appMemory))
+    let other = bd.appMemory.subtractingClamped(procsBytes)
     let used: [MemSegment] = [
         MemSegment(id: "Apps", bytes: procsBytes, color: .rvMemActive),
-        MemSegment(id: "Daemons", bytes: daemonRSS, color: .orange.opacity(0.6)),
-        MemSegment(id: "Untraced", bytes: untraced, color: .gray.opacity(0.4)),
+        MemSegment(id: "Other anon", bytes: other, color: .gray.opacity(0.45)),
         MemSegment(id: "GPU", bytes: bd.gpuInUse, color: .purple.opacity(0.7)),
         MemSegment(id: "Wired", bytes: bd.wired, color: .rvMemWired),
         MemSegment(id: "Compr", bytes: bd.compressed, color: .rvMemCompressed),
