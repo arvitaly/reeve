@@ -91,22 +91,35 @@ private func memSegments(_ snapshot: SystemSnapshot) -> [MemSegment] {
     guard let bd = snapshot.memoryBreakdown else { return [] }
     let physical = snapshot.physicalMemory
     let procsBytes = min(snapshot.processFootprintSum, bd.appMemory)
-    let kernelBytes = bd.appMemory - procsBytes
-    var segs = [
+    let daemonBytes = min(snapshot.epermProcessRSS, bd.appMemory.subtractingClamped(procsBytes))
+    let systemBytes = bd.appMemory.subtractingClamped(procsBytes + daemonBytes)
+    var used: [MemSegment] = [
         MemSegment(id: "Apps", bytes: procsBytes, color: .rvMemActive),
-        MemSegment(id: "Kernel", bytes: kernelBytes, color: .rvMemActive.opacity(0.5)),
+        MemSegment(id: "Daemons", bytes: daemonBytes, color: .orange.opacity(0.6)),
+        MemSegment(id: "System", bytes: systemBytes, color: .gray.opacity(0.5)),
         MemSegment(id: "GPU", bytes: bd.gpuInUse, color: .purple.opacity(0.7)),
         MemSegment(id: "Wired", bytes: bd.wired, color: .rvMemWired),
         MemSegment(id: "Compr", bytes: bd.compressed, color: .rvMemCompressed),
+    ]
+    .filter { $0.bytes > 0 }
+    .sorted { $0.bytes > $1.bytes }
+    let avail: [MemSegment] = [
         MemSegment(id: "Cached", bytes: bd.cached, color: .rvMemInactive),
         MemSegment(id: "Free", bytes: bd.free, color: .rvBarTrack),
     ]
     .filter { $0.bytes > 0 }
     .sorted { $0.bytes > $1.bytes }
+    var segs = used + avail
     let total = Double(physical)
     guard total > 0 else { return segs }
     for i in segs.indices { segs[i].fraction = Double(segs[i].bytes) / total }
     return segs
+}
+
+private extension UInt64 {
+    func subtractingClamped(_ other: UInt64) -> UInt64 {
+        self > other ? self - other : 0
+    }
 }
 
 struct MemoryBreakdownBar: View {

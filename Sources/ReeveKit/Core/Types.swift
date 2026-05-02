@@ -120,6 +120,10 @@ public struct SystemSnapshot: Sendable {
     public let totalCPU: Double
     /// Sum of physFootprint across all sampled processes. Processes returning EPERM are excluded.
     public let processFootprintSum: UInt64
+    /// Sum of residentMemory for processes where physFootprint is nil (EPERM).
+    public let epermProcessRSS: UInt64
+    /// Number of PIDs from listAllPIDs that proc_pidinfo could not read (invisible to us).
+    public let invisiblePIDCount: Int
 
     public init(
         processes: [ProcessRecord],
@@ -128,7 +132,9 @@ public struct SystemSnapshot: Sendable {
         usedMemory: UInt64? = nil,
         memoryBreakdown: MemoryBreakdown? = nil,
         totalCPU: Double = 0,
-        processFootprintSum: UInt64 = 0
+        processFootprintSum: UInt64 = 0,
+        epermProcessRSS: UInt64 = 0,
+        invisiblePIDCount: Int = 0
     ) {
         self.processes = processes
         self.sampledAt = sampledAt
@@ -137,6 +143,8 @@ public struct SystemSnapshot: Sendable {
         self.memoryBreakdown = memoryBreakdown
         self.totalCPU = totalCPU
         self.processFootprintSum = processFootprintSum
+        self.epermProcessRSS = epermProcessRSS
+        self.invisiblePIDCount = invisiblePIDCount
     }
 
     /// An empty snapshot used as the initial published state before the first poll.
