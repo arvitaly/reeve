@@ -350,22 +350,23 @@ func buildApplicationGroups(snapshot: SystemSnapshot) -> (apps: [ApplicationGrou
         ))
     }
 
-    let sysMem = snapshot.systemMemory
-    if sysMem > 0 && !snapshot.invisibleProcesses.isEmpty {
-        let names = snapshot.invisibleProcesses.map { $0.name }.sorted()
-        let synthetic = ProcessRecord(
-            pid: 0, name: "macOS System",
-            residentMemory: sysMem, cpuPercent: 0,
-            physFootprint: sysMem
-        )
+    if !snapshot.invisibleProcesses.isEmpty {
+        let sorted = snapshot.invisibleProcesses.sorted { $0.rssBytes > $1.rssBytes }
+        let procs = sorted.map { inv in
+            ProcessRecord(
+                pid: inv.pid, name: inv.name,
+                residentMemory: inv.rssBytes, cpuPercent: 0,
+                physFootprint: inv.rssBytes
+            )
+        }
+        let total = procs.reduce(UInt64(0)) { $0 + $1.residentMemory }
         apps.append(ApplicationGroup(
             id: 0,
-            displayName: "macOS System (\(snapshot.invisibleProcesses.count) daemons)",
+            displayName: "macOS System (\(procs.count))",
             bundleIdentifier: nil,
             icon: NSImage(systemSymbolName: "gearshape.2.fill", accessibilityDescription: nil),
             category: .system,
-            processes: [synthetic],
-            invisibleNames: names
+            processes: procs
         ))
     }
 

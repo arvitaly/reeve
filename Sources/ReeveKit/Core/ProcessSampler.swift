@@ -193,7 +193,8 @@ public actor ProcessSampler {
     }
 
     private func collectInvisibleProcesses(allPIDs: [pid_t], visiblePIDs: Set<pid_t>) -> [InvisibleProcess] {
-        allPIDs.compactMap { pid -> InvisibleProcess? in
+        let rssMap = Self.psRSSMap()
+        return allPIDs.compactMap { pid -> InvisibleProcess? in
             guard !visiblePIDs.contains(pid) else { return nil }
             var bsd = proc_bsdshortinfo()
             let size = Int32(MemoryLayout<proc_bsdshortinfo>.size)
@@ -202,8 +203,33 @@ public actor ProcessSampler {
                 ptr.withMemoryRebound(to: CChar.self, capacity: 16) { String(cString: $0) }
             }
             guard !name.isEmpty else { return nil }
-            return InvisibleProcess(pid: pid, name: name, uid: bsd.pbsi_uid)
+            return InvisibleProcess(pid: pid, name: name, uid: bsd.pbsi_uid, rssBytes: rssMap[pid] ?? 0)
         }
+    }
+
+    /// `ps -axo pid=,rss=` uses com.apple.system-task-ports.read entitlement to read
+    /// RSS for all processes including root-owned. Documented in ps(1). ~15ms.
+    private static func psRSSMap() -> [pid_t: UInt64] {
+        let proc = Foundation.Process()
+        proc.executableURL = URL(fileURLWithPath: "/bin/ps")
+        proc.arguments = ["-axo", "pid=,rss="]
+        let pipe = Pipe()
+        proc.standardOutput = pipe
+        proc.standardError = FileHandle.nullDevice
+        do { try proc.run() } catch { return [:] }
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        proc.waitUntilExit()
+        guard let output = String(data: data, encoding: .utf8) else { return [:] }
+        var map: [pid_t: UInt64] = [:]
+        for line in output.split(separator: "\n") {
+            let parts = line.split(separator: " ", maxSplits: 1)
+            guard parts.count == 2,
+                  let pid = Int32(parts[0].trimmingCharacters(in: .whitespaces)),
+                  let rssKB = UInt64(parts[1].trimmingCharacters(in: .whitespaces))
+            else { continue }
+            map[pid] = rssKB * 1024
+        }
+        return map
     }
 
     private func listAllPIDs() -> [pid_t] {

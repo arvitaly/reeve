@@ -7,10 +7,11 @@ public struct InvisibleProcess: Sendable, Identifiable {
     public let pid: pid_t
     public let name: String
     public let uid: UInt32
+    public let rssBytes: UInt64
     public var id: pid_t { pid }
 
-    public init(pid: pid_t, name: String, uid: UInt32) {
-        self.pid = pid; self.name = name; self.uid = uid
+    public init(pid: pid_t, name: String, uid: UInt32, rssBytes: UInt64 = 0) {
+        self.pid = pid; self.name = name; self.uid = uid; self.rssBytes = rssBytes
     }
 }
 
