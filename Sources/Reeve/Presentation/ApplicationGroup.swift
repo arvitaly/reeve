@@ -22,7 +22,6 @@ struct ApplicationGroup: Identifiable {
     let icon: NSImage?
     let category: AppCategory
     let processes: [ProcessRecord]
-    var invisibleNames: [String] = []
 
     /// Footprint-based total (compressed + resident + IOKit). Falls back to RSS per-process
     /// when rusage returned EPERM.

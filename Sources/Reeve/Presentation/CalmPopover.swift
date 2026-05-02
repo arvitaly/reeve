@@ -464,7 +464,7 @@ private struct CalmRow: View {
                 cache: diagnosticCache
             )
 
-            if !group.invisibleNames.isEmpty {
+            if group.id == 0 {
                 daemonList
             }
 
