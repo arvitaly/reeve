@@ -1,0 +1,529 @@
+/* Reeve — design tokens from DesignSystem.swift, oklch native */
+
+:root {
+  --rv-accent:      oklch(0.74 0.13 230);
+  --rv-accent-dim:  oklch(0.74 0.13 230 / 0.22);
+  --rv-ok:          oklch(0.66 0.13 162);
+  --rv-ok-glow:     oklch(0.66 0.13 162 / 0.22);
+  --rv-warn:        oklch(0.78 0.15 75);
+  --rv-warn-glow:   oklch(0.78 0.15 75 / 0.20);
+  --rv-over:        oklch(0.66 0.21 25);
+  --rv-over-glow:   oklch(0.66 0.21 25 / 0.28);
+  --rv-bg:          oklch(0.205 0.008 255);
+  --rv-bg-elev:     oklch(0.245 0.009 255);
+  --rv-text:        oklch(0.96 0.005 250);
+  --rv-text-dim:    oklch(0.74 0.008 250);
+  --rv-text-faint:  oklch(0.54 0.008 250);
+  --rv-hairline:    oklch(1 0 0 / 0.07);
+  --rv-pill:        oklch(1 0 0 / 0.08);
+
+  --rv-cat-browser:  oklch(0.74 0.13 230);
+  --rv-cat-dev:      oklch(0.74 0.14 290);
+  --rv-cat-comm:     oklch(0.78 0.14 340);
+  --rv-cat-system:   oklch(0.66 0.02 250);
+
+  --font-ui: system-ui, -apple-system, "SF Pro Text", "Helvetica Neue", sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "Menlo", "Consolas", monospace;
+  --radius: 8px;
+  --radius-sm: 5px;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --rv-accent:      oklch(0.55 0.14 235);
+    --rv-accent-dim:  oklch(0.55 0.14 235 / 0.16);
+    --rv-ok:          oklch(0.55 0.16 162);
+    --rv-ok-glow:     oklch(0.55 0.16 162 / 0.18);
+    --rv-warn:        oklch(0.68 0.17 75);
+    --rv-warn-glow:   oklch(0.68 0.17 75 / 0.18);
+    --rv-over:        oklch(0.55 0.22 25);
+    --rv-over-glow:   oklch(0.55 0.22 25 / 0.22);
+    --rv-bg:          oklch(0.985 0.003 250);
+    --rv-bg-elev:     oklch(1 0 0);
+    --rv-text:        oklch(0.18 0.005 250);
+    --rv-text-dim:    oklch(0.42 0.008 250);
+    --rv-text-faint:  oklch(0.62 0.008 250);
+    --rv-hairline:    oklch(0 0 0 / 0.06);
+    --rv-pill:        oklch(0 0 0 / 0.05);
+
+    --rv-cat-browser:  oklch(0.55 0.14 230);
+    --rv-cat-dev:      oklch(0.52 0.16 290);
+    --rv-cat-comm:     oklch(0.58 0.16 340);
+    --rv-cat-system:   oklch(0.55 0.02 250);
+  }
+}
+
+/* Reset + base */
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html {
+  scroll-behavior: smooth;
+  color-scheme: dark light;
+}
+
+body {
+  font-family: var(--font-ui);
+  background: var(--rv-bg);
+  color: var(--rv-text);
+  line-height: 1.55;
+  font-size: 15px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+a {
+  color: var(--rv-accent);
+  text-decoration: none;
+  transition: opacity 0.15s;
+}
+a:hover { opacity: 0.8; }
+
+code, pre {
+  font-family: var(--font-mono);
+  font-size: 13px;
+}
+
+/* Layout */
+
+.container {
+  max-width: 780px;
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+/* Nav */
+
+nav {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: var(--rv-bg);
+  border-bottom: 1px solid var(--rv-hairline);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+nav .container {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  height: 48px;
+}
+
+nav .logo {
+  font-weight: 600;
+  font-size: 15px;
+  color: var(--rv-text);
+  letter-spacing: 0.02em;
+}
+
+nav .links {
+  display: flex;
+  gap: 20px;
+  margin-left: auto;
+  font-size: 13px;
+}
+
+nav .links a { color: var(--rv-text-dim); }
+nav .links a:hover { color: var(--rv-text); opacity: 1; }
+
+/* Hero */
+
+.hero {
+  padding: 80px 0 64px;
+}
+
+.hero h1 {
+  font-size: 48px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+  margin-bottom: 16px;
+}
+
+.hero .tagline {
+  font-size: 19px;
+  color: var(--rv-text-dim);
+  max-width: 480px;
+  line-height: 1.5;
+  margin-bottom: 32px;
+}
+
+.hero .install-block {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--rv-bg-elev);
+  border: 1px solid var(--rv-hairline);
+  border-radius: var(--radius);
+  padding: 12px 20px;
+  font-family: var(--font-mono);
+  font-size: 14px;
+  color: var(--rv-text);
+  cursor: default;
+  user-select: all;
+}
+
+.hero .install-label {
+  font-family: var(--font-ui);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--rv-text-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+/* Etymology */
+
+.etymology {
+  padding: 0 0 56px;
+}
+
+.etymology blockquote {
+  font-size: 15px;
+  font-style: italic;
+  color: var(--rv-text-dim);
+  border-left: 2px solid var(--rv-accent);
+  padding-left: 16px;
+  max-width: 520px;
+}
+
+/* Severity ramp */
+
+.severity-ramp {
+  display: flex;
+  gap: 12px;
+  padding: 48px 0;
+}
+
+.severity-pip {
+  flex: 1;
+  padding: 16px;
+  border-radius: var(--radius);
+  border: 1px solid var(--rv-hairline);
+}
+
+.severity-pip .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-bottom: 10px;
+}
+
+.severity-pip .label {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 4px;
+}
+
+.severity-pip .desc {
+  font-size: 13px;
+  color: var(--rv-text-dim);
+  line-height: 1.5;
+}
+
+.pip-ok .dot   { background: var(--rv-ok); }
+.pip-ok        { background: var(--rv-ok-glow); }
+.pip-ok .label { color: var(--rv-ok); }
+
+.pip-warn .dot   { background: var(--rv-warn); }
+.pip-warn        { background: var(--rv-warn-glow); }
+.pip-warn .label { color: var(--rv-warn); }
+
+.pip-over .dot   { background: var(--rv-over); }
+.pip-over        { background: var(--rv-over-glow); }
+.pip-over .label { color: var(--rv-over); }
+
+/* Pressure bar demo */
+
+.pressure-demo {
+  padding: 0 0 48px;
+}
+
+.pressure-bar {
+  height: 5px;
+  border-radius: 3px;
+  background: var(--rv-pill);
+  overflow: hidden;
+  margin-bottom: 8px;
+}
+
+.pressure-fill {
+  height: 100%;
+  border-radius: 3px;
+  background: linear-gradient(90deg, var(--rv-ok), var(--rv-warn) 70%, var(--rv-over));
+  animation: pressure-breathe 4s ease-in-out infinite;
+}
+
+@keyframes pressure-breathe {
+  0%, 100% { width: 55%; }
+  50%      { width: 72%; }
+}
+
+.pressure-labels {
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--rv-text-faint);
+}
+
+/* Section */
+
+section.panel {
+  padding: 48px 0;
+}
+
+section.panel + section.panel {
+  border-top: 1px solid var(--rv-hairline);
+}
+
+section.panel h2 {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--rv-text-faint);
+  margin-bottom: 20px;
+}
+
+/* Feature list */
+
+.features {
+  display: grid;
+  gap: 12px;
+}
+
+.feature {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.feature .bullet {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--rv-accent);
+  flex-shrink: 0;
+  margin-top: 7px;
+}
+
+.feature p {
+  font-size: 14px;
+  color: var(--rv-text-dim);
+  line-height: 1.55;
+}
+
+.feature strong {
+  color: var(--rv-text);
+  font-weight: 500;
+}
+
+/* Absent list — what it doesn't do */
+
+.absent {
+  display: grid;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.absent .item {
+  font-size: 13px;
+  color: var(--rv-text-faint);
+}
+
+.absent .item::before {
+  content: "\2014\00a0";
+}
+
+/* Architecture */
+
+.arch-targets {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.arch-card {
+  padding: 16px;
+  border-radius: var(--radius);
+  background: var(--rv-bg-elev);
+  border: 1px solid var(--rv-hairline);
+}
+
+.arch-card h3 {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.arch-card p {
+  font-size: 13px;
+  color: var(--rv-text-dim);
+  line-height: 1.5;
+}
+
+.arch-note {
+  margin-top: 16px;
+  font-size: 13px;
+  color: var(--rv-text-faint);
+  line-height: 1.5;
+}
+
+/* Build from source */
+
+.source-block {
+  background: var(--rv-bg-elev);
+  border: 1px solid var(--rv-hairline);
+  border-radius: var(--radius);
+  padding: 16px 20px;
+  overflow-x: auto;
+}
+
+.source-block pre {
+  color: var(--rv-text);
+  line-height: 1.7;
+}
+
+.source-block .comment { color: var(--rv-text-faint); }
+
+/* Constraints */
+
+.constraints {
+  display: grid;
+  gap: 12px;
+}
+
+.constraint {
+  padding: 14px 16px;
+  border-radius: var(--radius);
+  background: var(--rv-bg-elev);
+  border: 1px solid var(--rv-hairline);
+}
+
+.constraint .title {
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.constraint .body {
+  font-size: 13px;
+  color: var(--rv-text-dim);
+  line-height: 1.5;
+}
+
+/* Footer */
+
+footer {
+  padding: 48px 0 64px;
+  border-top: 1px solid var(--rv-hairline);
+  margin-top: 48px;
+}
+
+footer .container {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+footer .copy {
+  font-size: 12px;
+  color: var(--rv-text-faint);
+}
+
+footer .foot-links {
+  display: flex;
+  gap: 16px;
+  font-size: 12px;
+}
+
+footer .foot-links a { color: var(--rv-text-faint); }
+footer .foot-links a:hover { color: var(--rv-text); }
+
+/* Changelog */
+
+.changelog-entry {
+  padding: 24px 0;
+}
+
+.changelog-entry + .changelog-entry {
+  border-top: 1px solid var(--rv-hairline);
+}
+
+.changelog-entry .version {
+  font-family: var(--font-mono);
+  font-size: 15px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.changelog-entry .summary {
+  font-size: 14px;
+  color: var(--rv-text-dim);
+  line-height: 1.55;
+}
+
+.changelog-entry .details {
+  margin-top: 8px;
+  display: grid;
+  gap: 4px;
+}
+
+.changelog-entry .details li {
+  list-style: none;
+  font-size: 13px;
+  color: var(--rv-text-dim);
+  padding-left: 16px;
+  position: relative;
+}
+
+.changelog-entry .details li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 8px;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--rv-text-faint);
+}
+
+/* Chip — reusable tag component matching ActionChip in the app */
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: var(--radius-sm);
+  font-size: 11px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.chip-accent {
+  background: var(--rv-accent-dim);
+  color: var(--rv-accent);
+}
+
+.chip-system {
+  background: var(--rv-pill);
+  color: var(--rv-text-dim);
+}
+
+/* Responsive */
+
+@media (max-width: 600px) {
+  .hero h1 { font-size: 36px; }
+  .hero .tagline { font-size: 16px; }
+  .severity-ramp { flex-direction: column; }
+  .arch-targets { grid-template-columns: 1fr; }
+  nav .container { gap: 16px; }
+  nav .links { gap: 14px; }
+}

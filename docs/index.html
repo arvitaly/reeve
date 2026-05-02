@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Reeve — intervention tool for macOS</title>
+  <meta name="description" content="Observe, limit, release. Reeve is a macOS resource manager that helps you act on memory hogs, not just watch them.">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<nav>
+  <div class="container">
+    <a class="logo" href="/">Reeve</a>
+    <div class="links">
+      <a href="#features">Features</a>
+      <a href="#architecture">Architecture</a>
+      <a href="changelog.html">Changelog</a>
+      <a href="https://github.com/arvitaly/reeve">GitHub</a>
+    </div>
+  </div>
+</nav>
+
+<main class="container">
+
+  <!-- Hero -->
+  <section class="hero">
+    <h1>Reeve</h1>
+    <p class="tagline">
+      Intervention tool for macOS, not a monitor.
+      Observe, limit, release &mdash; then get back to work.
+    </p>
+    <div class="install-block">
+      <span>brew tap arvitaly/reeve &amp;&amp; brew install --cask reeve</span>
+    </div>
+  </section>
+
+  <!-- Etymology -->
+  <section class="etymology">
+    <blockquote>
+      A reeve was a medieval estate manager &mdash; overseeing resources, keeping order.
+    </blockquote>
+  </section>
+
+  <!-- Severity ramp -->
+  <section>
+    <div class="severity-ramp">
+      <div class="severity-pip pip-ok">
+        <div class="dot"></div>
+        <div class="label">Normal</div>
+        <div class="desc">Under threshold. Nothing to do.</div>
+      </div>
+      <div class="severity-pip pip-warn">
+        <div class="dot"></div>
+        <div class="label">Warning</div>
+        <div class="desc">Approaching cap. Worth a look.</div>
+      </div>
+      <div class="severity-pip pip-over">
+        <div class="dot"></div>
+        <div class="label">Over</div>
+        <div class="desc">Exceeded cap. Act or accept.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Pressure bar -->
+  <section class="pressure-demo">
+    <div class="pressure-bar">
+      <div class="pressure-fill"></div>
+    </div>
+    <div class="pressure-labels">
+      <span>Kernel-reported memory pressure</span>
+      <span>8.4 GB / 16 GB</span>
+    </div>
+  </section>
+
+  <!-- Features -->
+  <section id="features" class="panel">
+    <h2>What it does</h2>
+    <div class="features">
+      <div class="feature">
+        <div class="bullet"></div>
+        <p><strong>Application grouping</strong> &mdash; all child processes under their parent app. One row per app, not per process.</p>
+      </div>
+      <div class="feature">
+        <div class="bullet"></div>
+        <p><strong>Inline actions</strong> &mdash; hold-to-kill, suspend, lower priority, resume. Single click from the popover.</p>
+      </div>
+      <div class="feature">
+        <div class="bullet"></div>
+        <p><strong>Rule engine</strong> &mdash; auto-kill or renice any app that exceeds a memory threshold. Sentence-syntax rule creation.</p>
+      </div>
+      <div class="feature">
+        <div class="bullet"></div>
+        <p><strong>Diagnostics</strong> &mdash; per-app memory breakdown by VM region. Finds why Finder eats 3 GB (4000 Desktop files), why Chrome leaks (25 renderer processes), suggests remediations.</p>
+      </div>
+      <div class="feature">
+        <div class="bullet"></div>
+        <p><strong>System pressure bar</strong> &mdash; kernel-reported RAM usage, not a sum of resident pages. Shows what the OS actually sees.</p>
+      </div>
+      <div class="feature">
+        <div class="bullet"></div>
+        <p><strong>Menu bar severity</strong> &mdash; lights up when something crosses a threshold. Shows the offending app icon and memory value.</p>
+      </div>
+      <div class="feature">
+        <div class="bullet"></div>
+        <p><strong>Widget modes</strong> &mdash; compact, expanded, pinned apps, dashboard with sparklines. Floating always-on-top overlay.</p>
+      </div>
+      <div class="feature">
+        <div class="bullet"></div>
+        <p><strong>Disk analysis</strong> &mdash; per-app I/O rates, DerivedData size detection, cache cleanup suggestions.</p>
+      </div>
+    </div>
+
+    <div class="absent">
+      <div class="item">No network I/O (not exposed by any public macOS API)</div>
+      <div class="item">No GPU memory</div>
+      <div class="item">No root-required actions</div>
+    </div>
+  </section>
+
+  <!-- Diagnostics -->
+  <section class="panel">
+    <h2>Diagnostics probes</h2>
+    <div class="features">
+      <div class="feature">
+        <div class="bullet"></div>
+        <p><strong>VM Region Inspector</strong> &mdash; PROC_PIDREGIONPATHINFO breakdown for any app. Categories: MALLOC, Stack, Frameworks, CoreAnimation, CGImage, JavaScriptCore, SQLite.</p>
+      </div>
+      <div class="feature">
+        <div class="bullet"></div>
+        <p><strong>Browser tabs</strong> &mdash; counts renderer child processes. Chrome, Brave, Edge, Arc, Vivaldi, Opera, Electron apps (Slack, Discord).</p>
+      </div>
+      <div class="feature">
+        <div class="bullet"></div>
+        <p><strong>Finder Desktop</strong> &mdash; file count + QuickLook thumbnail cache size. Suggests moving files when Desktop exceeds 50 items.</p>
+      </div>
+      <div class="feature">
+        <div class="bullet"></div>
+        <p><strong>Xcode DerivedData</strong> &mdash; measures ~/Library/Developer/Xcode/DerivedData. Actionable above 20 GB.</p>
+      </div>
+      <div class="feature">
+        <div class="bullet"></div>
+        <p><strong>Docker memory</strong> &mdash; reads Docker settings.json memoryMiB. Flags allocation above 4 GB.</p>
+      </div>
+      <div class="feature">
+        <div class="bullet"></div>
+        <p><strong>VS Code extensions</strong> &mdash; counts installed extensions. Advisory above 30.</p>
+      </div>
+      <div class="feature">
+        <div class="bullet"></div>
+        <p><strong>Safari tabs</strong> &mdash; AppleScript tab counter with honest permission handling.</p>
+      </div>
+      <div class="feature">
+        <div class="bullet"></div>
+        <p><strong>Self-probe</strong> &mdash; Reeve diagnoses its own memory. If it can't, the framework is wrong.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Constraints -->
+  <section class="panel">
+    <h2>Design constraints</h2>
+    <div class="constraints">
+      <div class="constraint">
+        <div class="title">Single process</div>
+        <div class="body">No daemon. No LaunchAgent. No root helper. Everything Reeve does, it does within its own process space.</div>
+      </div>
+      <div class="constraint">
+        <div class="title">Metric honesty</div>
+        <div class="body">Every system call is traceable to a public source: man page, header, or Apple documentation. If a metric requires a private API, it is not exposed. "Unknown" is a valid value.</div>
+      </div>
+      <div class="constraint">
+        <div class="title">Mutation semantics</div>
+        <div class="body">Reversible (renice, suspend) vs irreversible (SIGKILL, cache purge). The distinction is structural. Preflight names the class explicitly before any mutation.</div>
+      </div>
+      <div class="constraint">
+        <div class="title">Self-referential</div>
+        <div class="body">Reeve must appear in its own top-consumer list. If it does not, the list is wrong or Reeve is hiding itself.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Architecture -->
+  <section id="architecture" class="panel">
+    <h2>Architecture</h2>
+    <div class="arch-targets">
+      <div class="arch-card">
+        <h3>ReeveKit</h3>
+        <p>Library target. Process sampling via <code>libproc</code>, action domain, rule engine, diagnostic probes, VM region inspector. Fully unit-tested, no AppKit dependency.</p>
+      </div>
+      <div class="arch-card">
+        <h3>Reeve</h3>
+        <p>Executable target. SwiftUI + AppKit. <code>MenuBarExtra</code>, <code>NSPanel</code> overlay, application grouping via <code>NSWorkspace</code>, remediation execution.</p>
+      </div>
+    </div>
+    <p class="arch-note">
+      macOS 13 Ventura or later. Apple Silicon.
+      <code>swift build</code> from a clean clone produces a working binary.
+    </p>
+  </section>
+
+  <!-- Build from source -->
+  <section class="panel">
+    <h2>Build from source</h2>
+    <div class="source-block">
+      <pre>git clone https://github.com/arvitaly/reeve.git
+cd reeve
+make run</pre>
+    </div>
+    <p class="arch-note">Requires Xcode command-line tools. No other dependencies.</p>
+  </section>
+
+  <!-- Requirements -->
+  <section class="panel">
+    <h2>Requirements</h2>
+    <div class="features">
+      <div class="feature">
+        <div class="bullet"></div>
+        <p>macOS 13 Ventura or later</p>
+      </div>
+      <div class="feature">
+        <div class="bullet"></div>
+        <p>Apple Silicon (M1 and above)</p>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <div class="container">
+    <span class="copy">Reeve</span>
+    <div class="foot-links">
+      <a href="changelog.html">Changelog</a>
+      <a href="https://github.com/arvitaly/reeve">Source</a>
+      <a href="https://github.com/arvitaly/reeve/releases">Releases</a>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>

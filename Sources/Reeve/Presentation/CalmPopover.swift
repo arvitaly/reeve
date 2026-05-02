@@ -13,6 +13,7 @@ struct CalmPopover: View {
 
     @State private var expandedID: pid_t?
     @State private var filter: FilterMode = .all
+    @State private var diagnosticCache = DiagnosticCache()
 
     enum FilterMode { case all, high, capped }
 
@@ -44,6 +45,8 @@ struct CalmPopover: View {
                                 memHistory: groupRuleEngine.groupMemHistory[group.displayName] ?? [],
                                 cpuHistory: groupRuleEngine.groupCpuHistory[group.displayName] ?? [],
                                 cap: cap, expanded: exp,
+                                snapshot: engine.snapshot,
+                                diagnosticCache: diagnosticCache,
                                 onToggle: { toggle(group.id) },
                                 onSetCap: { gb in setCapRule(for: group, capGB: gb) },
                                 onRemoveCap: { removeCapRule(for: group) },
@@ -82,7 +85,7 @@ struct CalmPopover: View {
                 Text("Reeve")
                     .font(.system(size: 13, weight: .semibold))
                     .tracking(-0.1)
-                Text("\(String(format: "%.1f", totalMem / 1_073_741_824)) GB · \(String(format: "%.0f", totalCpu))% · \(appCount) apps")
+                Text("\(appCount) apps")
                     .font(.system(size: 11, weight: .medium))
                     .foregroundStyle(Color.rvTextFaint)
                 Spacer()
@@ -102,7 +105,10 @@ struct CalmPopover: View {
                     .foregroundStyle(Color.rvOk)
                 }
             }
-            .padding(.bottom, 10)
+            .padding(.bottom, 8)
+
+            PressureBar(snapshot: engine.snapshot)
+                .padding(.bottom, 10)
 
             HStack(spacing: 4) {
                 filterChip("All", .all)
@@ -163,6 +169,10 @@ struct CalmPopover: View {
             HStack(spacing: 4) { SeverityDot(severity: .warn, size: 5); Text("Warn") }
             HStack(spacing: 4) { SeverityDot(severity: .over, size: 5); Text("Over") }
             Spacer()
+            Button("Window") { mainWindow.show(appState: appState) }
+                .buttonStyle(.plain)
+                .foregroundStyle(Color.rvTextFaint)
+            Divider().frame(height: 14)
             Button("Settings") {
                 NSApp.activate(ignoringOtherApps: true)
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
@@ -241,6 +251,8 @@ private struct CalmRow: View {
     let cpuHistory: [Double]
     let cap: UInt64?
     let expanded: Bool
+    let snapshot: SystemSnapshot
+    let diagnosticCache: DiagnosticCache
     let onToggle: () -> Void
     let onSetCap: (Double) -> Void
     let onRemoveCap: () -> Void
@@ -447,6 +459,17 @@ private struct CalmRow: View {
                            cpuHistory, cpuSev.color, capMax: 100)
             }
             .padding(.bottom, 12)
+
+            DiagnosticPanel(
+                context: ProbeContext(
+                    bundleID: group.bundleIdentifier,
+                    displayName: group.displayName,
+                    processes: group.processes,
+                    totalMemory: group.totalMemory,
+                    snapshot: snapshot
+                ),
+                cache: diagnosticCache
+            )
 
             smartSuggestion
 

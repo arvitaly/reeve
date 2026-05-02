@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Changelog — Reeve</title>
+  <meta name="description" content="Release history for Reeve, macOS intervention tool.">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<nav>
+  <div class="container">
+    <a class="logo" href="index.html">Reeve</a>
+    <div class="links">
+      <a href="index.html#features">Features</a>
+      <a href="index.html#architecture">Architecture</a>
+      <a href="changelog.html">Changelog</a>
+      <a href="https://github.com/arvitaly/reeve">GitHub</a>
+    </div>
+  </div>
+</nav>
+
+<main class="container">
+
+  <section class="hero" style="padding-bottom: 32px;">
+    <h1>Changelog</h1>
+    <p class="tagline">Release history. Each version ships via Homebrew Cask.</p>
+  </section>
+
+  <section>
+
+    <div class="changelog-entry">
+      <div class="version">v0.1.10</div>
+      <div class="summary">CalmPopover UI overhaul, settings fix, comprehensive test coverage.</div>
+      <ul class="details">
+        <li>Redesigned popover with CalmRow expansion: sparkline panels, inline diagnostics, smart suggestions</li>
+        <li>Fixed settings persistence issue</li>
+        <li>266 tests across ReeveKit and Reeve targets</li>
+      </ul>
+    </div>
+
+    <div class="changelog-entry">
+      <div class="version">v0.1.9</div>
+      <div class="summary">Stability fixes for pressure kill routing and disk overlap.</div>
+      <ul class="details">
+        <li>Fixed pressure kill routing to correct target process</li>
+        <li>Resolved disk stat overlap between parent and child processes</li>
+        <li>Added <code>terminateGracefully</code> action kind</li>
+      </ul>
+    </div>
+
+    <div class="changelog-entry">
+      <div class="version">v0.1.8</div>
+      <div class="summary">Version display in popover footer.</div>
+      <ul class="details">
+        <li>Popover footer now shows current Reeve version</li>
+        <li>Makefile auto-update cask + publish target</li>
+      </ul>
+    </div>
+
+    <div class="changelog-entry">
+      <div class="version">v0.1.7</div>
+      <div class="summary">Disk analysis tab, multi-metric menu bar.</div>
+      <ul class="details">
+        <li>New Disk tab in main window showing per-app I/O rates</li>
+        <li>Menu bar displays configurable metric (memory, CPU, or disk)</li>
+        <li>DiskScanner: scan-then-act pattern for disk usage analysis</li>
+      </ul>
+    </div>
+
+    <div class="changelog-entry">
+      <div class="version">v0.1.6</div>
+      <div class="summary">Fix pressure kill sequencing.</div>
+      <ul class="details">
+        <li>Corrected the order of operations when pressure-triggered kill fires</li>
+      </ul>
+    </div>
+
+    <div class="changelog-entry">
+      <div class="version">v0.1.5</div>
+      <div class="summary">Pressure tab in main window.</div>
+      <ul class="details">
+        <li>New Pressure tab showing kernel-reported memory pressure state</li>
+        <li>Pressure history visualization</li>
+      </ul>
+    </div>
+
+    <div class="changelog-entry">
+      <div class="version">v0.1.4</div>
+      <div class="summary">Memory pressure kill policy, terminal tab grouping.</div>
+      <ul class="details">
+        <li>Rule engine now supports memory-pressure-triggered kills</li>
+        <li>Terminal.app and iTerm2 tabs grouped under parent process</li>
+      </ul>
+    </div>
+
+    <div class="changelog-entry">
+      <div class="version">v0.1.3</div>
+      <div class="summary">Apps tab in main window.</div>
+      <ul class="details">
+        <li>Full application list with sorting and search in the main window</li>
+        <li>Process tree hierarchy display</li>
+      </ul>
+    </div>
+
+    <div class="changelog-entry">
+      <div class="version">v0.1.2</div>
+      <div class="summary">Fix popup list invisible on some macOS configurations.</div>
+      <ul class="details">
+        <li>Resolved rendering issue where popover content was blank on certain display configs</li>
+      </ul>
+    </div>
+
+    <div class="changelog-entry">
+      <div class="version">v0.1.1</div>
+      <div class="summary">Fix menu bar icon rendering.</div>
+      <ul class="details">
+        <li>Corrected icon sizing and rendering in the macOS menu bar</li>
+      </ul>
+    </div>
+
+    <div class="changelog-entry">
+      <div class="version">v0.1.0</div>
+      <div class="summary">Initial public release.</div>
+      <ul class="details">
+        <li>Menu bar icon with severity state</li>
+        <li>Popover with application groups, inline actions</li>
+        <li>Floating overlay widget (compact, expanded, pinned, dashboard)</li>
+        <li>Rule engine with auto-kill and auto-renice</li>
+        <li>System pressure bar with kernel-reported memory</li>
+        <li>Hold-to-kill, suspend/resume, lower priority actions</li>
+        <li>Homebrew Cask installation</li>
+      </ul>
+    </div>
+
+  </section>
+
+</main>
+
+<footer>
+  <div class="container">
+    <span class="copy">Reeve</span>
+    <div class="foot-links">
+      <a href="index.html">Home</a>
+      <a href="https://github.com/arvitaly/reeve">Source</a>
+      <a href="https://github.com/arvitaly/reeve/releases">Releases</a>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>
