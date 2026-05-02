@@ -2,7 +2,7 @@ BUNDLE     = Reeve.app
 BINARY     = $(BUNDLE)/Contents/MacOS/Reeve
 INFOPLIST  = $(BUNDLE)/Contents/Info.plist
 CONFIG    ?= debug
-VERSION   ?= 0.1.12
+VERSION   ?= 0.2.0
 ARCH      := $(shell uname -m)
 
 # Filled in by the developer; leave blank to skip codesigning.
