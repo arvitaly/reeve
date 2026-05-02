@@ -16,25 +16,42 @@ struct PressureBar: View {
         return .normal
     }
 
-    private var memLabel: String {
-        let total = ByteCountFormatter.string(
-            fromByteCount: Int64(snapshot.physicalMemory), countStyle: .memory
-        )
-        guard let used = snapshot.usedMemory else { return "— / \(total)" }
-        let usedStr = ByteCountFormatter.string(fromByteCount: Int64(used), countStyle: .memory)
-        return "\(usedStr) / \(total)"
+    private var usedLabel: String {
+        guard let used = snapshot.usedMemory else { return "—" }
+        return shortGB(used)
+    }
+
+    private var availLabel: String {
+        guard let bd = snapshot.memoryBreakdown else { return "" }
+        return shortGB(bd.free + bd.cached)
     }
 
     private var cpuLabel: String {
         String(format: "CPU %.0f%%", snapshot.totalCPU)
     }
 
+    private func shortGB(_ bytes: UInt64) -> String {
+        let gb = Double(bytes) / 1_073_741_824
+        return gb >= 10 ? String(format: "%.0fG", gb) : String(format: "%.1fG", gb)
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
-            HStack {
-                Text(memLabel)
+            HStack(spacing: 4) {
+                Text(usedLabel)
                     .font(RVFont.mono(size: 10))
                     .foregroundStyle(severity != .normal ? severity.textColor : Color.rvTextFaint)
+                Text("/")
+                    .font(RVFont.mono(size: 10))
+                    .foregroundStyle(Color.rvTextFaint)
+                Text(shortGB(snapshot.physicalMemory))
+                    .font(RVFont.mono(size: 10))
+                    .foregroundStyle(Color.rvTextFaint)
+                if !availLabel.isEmpty {
+                    Text("(\(availLabel) avail)")
+                        .font(RVFont.mono(size: 9))
+                        .foregroundStyle(.green.opacity(0.7))
+                }
                 Spacer()
                 Text(cpuLabel)
                     .font(RVFont.mono(size: 10))
@@ -52,7 +69,7 @@ struct PressureBar: View {
                             .frame(width: geo.size.width * fill)
                     }
                 }
-                .frame(height: 5)
+                .frame(height: 10)
             }
             if let bd = snapshot.memoryBreakdown {
                 MemoryBreakdownLegend(breakdown: bd, physical: snapshot.physicalMemory)
@@ -75,7 +92,7 @@ private func memSegments(_ bd: MemoryBreakdown, physical: UInt64) -> [MemSegment
         MemSegment(id: "Apps", bytes: bd.appMemory, color: .rvMemActive),
         MemSegment(id: "GPU", bytes: bd.gpuInUse, color: .purple.opacity(0.7)),
         MemSegment(id: "Wired", bytes: bd.wired, color: .rvMemWired),
-        MemSegment(id: "Compressed", bytes: bd.compressed, color: .rvMemCompressed),
+        MemSegment(id: "Compr", bytes: bd.compressed, color: .rvMemCompressed),
         MemSegment(id: "Cached", bytes: bd.cached, color: .rvMemInactive),
         MemSegment(id: "Free", bytes: bd.free, color: .rvBarTrack),
     ]
@@ -105,7 +122,7 @@ struct MemoryBreakdownBar: View {
             .clipShape(RoundedRectangle(cornerRadius: 2.5))
             .background(RoundedRectangle(cornerRadius: 2.5).fill(Color.rvBarTrack))
         }
-        .frame(height: 5)
+        .frame(height: 10)
     }
 }
 
@@ -117,22 +134,62 @@ struct MemoryBreakdownLegend: View {
 
     var body: some View {
         let segs = memSegments(breakdown, physical: physical)
-        HStack(spacing: 8) {
+        FlowLayout(spacing: 6) {
             ForEach(segs) { seg in
-                HStack(spacing: 3) {
+                HStack(spacing: 2) {
                     Circle().fill(seg.color).frame(width: 5, height: 5)
                     Text("\(seg.id) \(shortMem(seg.bytes))")
                         .font(.system(size: 9).monospacedDigit())
                         .foregroundStyle(.secondary)
                 }
             }
-            Spacer()
         }
     }
 
     private func shortMem(_ bytes: UInt64) -> String {
         let gb = Double(bytes) / 1_073_741_824
+        if gb >= 10 { return String(format: "%.0fG", gb) }
         if gb >= 1.0 { return String(format: "%.1fG", gb) }
         return String(format: "%.0fM", Double(bytes) / 1_048_576)
+    }
+}
+
+private struct FlowLayout: Layout {
+    var spacing: CGFloat = 6
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let rows = arrangeRows(proposal: proposal, subviews: subviews)
+        guard let last = rows.last else { return .zero }
+        return CGSize(width: proposal.width ?? 0, height: last.y + last.height)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        let rows = arrangeRows(proposal: ProposedViewSize(width: bounds.width, height: bounds.height), subviews: subviews)
+        for (i, pos) in rows.enumerated() {
+            subviews[i].place(at: CGPoint(x: bounds.minX + pos.x, y: bounds.minY + pos.y),
+                              proposal: .unspecified)
+        }
+    }
+
+    private struct Pos { var x: CGFloat; var y: CGFloat; var height: CGFloat }
+
+    private func arrangeRows(proposal: ProposedViewSize, subviews: Subviews) -> [Pos] {
+        let maxW = proposal.width ?? .infinity
+        var result: [Pos] = []
+        var x: CGFloat = 0
+        var y: CGFloat = 0
+        var rowH: CGFloat = 0
+        for sub in subviews {
+            let size = sub.sizeThatFits(.unspecified)
+            if x + size.width > maxW && x > 0 {
+                y += rowH + 2
+                x = 0
+                rowH = 0
+            }
+            result.append(Pos(x: x, y: y, height: size.height))
+            rowH = max(rowH, size.height)
+            x += size.width + spacing
+        }
+        return result
     }
 }
