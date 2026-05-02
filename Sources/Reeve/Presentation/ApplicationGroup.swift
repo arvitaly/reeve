@@ -22,6 +22,7 @@ struct ApplicationGroup: Identifiable {
     let icon: NSImage?
     let category: AppCategory
     let processes: [ProcessRecord]
+    var invisibleNames: [String] = []
 
     /// Footprint-based total (compressed + resident + IOKit). Falls back to RSS per-process
     /// when rusage returned EPERM.
@@ -346,6 +347,25 @@ func buildApplicationGroups(snapshot: SystemSnapshot) -> (apps: [ApplicationGrou
             icon: app.icon,
             category: categorize(bundleID: app.bundleIdentifier),
             processes: procs
+        ))
+    }
+
+    let sysMem = snapshot.systemMemory
+    if sysMem > 0 && !snapshot.invisibleProcesses.isEmpty {
+        let names = snapshot.invisibleProcesses.map { $0.name }.sorted()
+        let synthetic = ProcessRecord(
+            pid: 0, name: "macOS System",
+            residentMemory: sysMem, cpuPercent: 0,
+            physFootprint: sysMem
+        )
+        apps.append(ApplicationGroup(
+            id: 0,
+            displayName: "macOS System (\(snapshot.invisibleProcesses.count) daemons)",
+            bundleIdentifier: nil,
+            icon: NSImage(systemSymbolName: "gearshape.2.fill", accessibilityDescription: nil),
+            category: .system,
+            processes: [synthetic],
+            invisibleNames: names
         ))
     }
 

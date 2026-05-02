@@ -93,7 +93,7 @@ private func memSegments(_ snapshot: SystemSnapshot) -> [MemSegment] {
     let procsBytes = min(snapshot.processFootprintSum, bd.appMemory)
     let daemonBytes = min(snapshot.epermProcessRSS, bd.appMemory.subtractingClamped(procsBytes))
     let systemBytes = bd.appMemory.subtractingClamped(procsBytes + daemonBytes)
-    var used: [MemSegment] = [
+    let used: [MemSegment] = [
         MemSegment(id: "Apps", bytes: procsBytes, color: .rvMemActive),
         MemSegment(id: "Daemons", bytes: daemonBytes, color: .orange.opacity(0.6)),
         MemSegment(id: "System", bytes: systemBytes, color: .gray.opacity(0.5)),

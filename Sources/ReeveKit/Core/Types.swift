@@ -1,6 +1,19 @@
 import Foundation
 import Darwin
 
+/// A process visible to listAllPIDs but not to PROC_PIDTASKINFO (root-owned daemons).
+/// Name recovered via PROC_PIDT_SHORTBSDINFO.
+public struct InvisibleProcess: Sendable, Identifiable {
+    public let pid: pid_t
+    public let name: String
+    public let uid: UInt32
+    public var id: pid_t { pid }
+
+    public init(pid: pid_t, name: String, uid: UInt32) {
+        self.pid = pid; self.name = name; self.uid = uid
+    }
+}
+
 /// A point-in-time snapshot of a single process, captured from the kernel via libproc.
 ///
 /// `isReeve` is a structural property, not a filter. If Reeve ranks high, it ranks high.
@@ -122,8 +135,8 @@ public struct SystemSnapshot: Sendable {
     public let processFootprintSum: UInt64
     /// Sum of residentMemory for processes where physFootprint is nil (EPERM).
     public let epermProcessRSS: UInt64
-    /// Number of PIDs from listAllPIDs that proc_pidinfo could not read (invisible to us).
-    public let invisiblePIDCount: Int
+    /// Processes visible to listAllPIDs but not to PROC_PIDTASKINFO. Names from PROC_PIDT_SHORTBSDINFO.
+    public let invisibleProcesses: [InvisibleProcess]
 
     public init(
         processes: [ProcessRecord],
@@ -134,7 +147,7 @@ public struct SystemSnapshot: Sendable {
         totalCPU: Double = 0,
         processFootprintSum: UInt64 = 0,
         epermProcessRSS: UInt64 = 0,
-        invisiblePIDCount: Int = 0
+        invisibleProcesses: [InvisibleProcess] = []
     ) {
         self.processes = processes
         self.sampledAt = sampledAt
@@ -144,7 +157,15 @@ public struct SystemSnapshot: Sendable {
         self.totalCPU = totalCPU
         self.processFootprintSum = processFootprintSum
         self.epermProcessRSS = epermProcessRSS
-        self.invisiblePIDCount = invisiblePIDCount
+        self.invisibleProcesses = invisibleProcesses
+    }
+
+    /// Memory attributable to invisible processes + kernel (gap between vm_stat and measured footprints).
+    public var systemMemory: UInt64 {
+        guard let bd = memoryBreakdown else { return 0 }
+        let procs = min(processFootprintSum, bd.appMemory)
+        let daemons = min(epermProcessRSS, bd.appMemory > procs ? bd.appMemory - procs : 0)
+        return bd.appMemory > procs + daemons ? bd.appMemory - procs - daemons : 0
     }
 
     /// An empty snapshot used as the initial published state before the first poll.

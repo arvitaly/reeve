@@ -127,7 +127,8 @@ public actor ProcessSampler {
         let footprintSum = processes.reduce(UInt64(0)) { $0 + ($1.physFootprint ?? 0) }
         let epermRSS = processes.filter { $0.physFootprint == nil }
             .reduce(UInt64(0)) { $0 + $1.residentMemory }
-        let invisibleCount = pids.count - processes.count
+        let visiblePIDs = Set(processes.map { $0.pid })
+        let invisible = collectInvisibleProcesses(allPIDs: pids, visiblePIDs: visiblePIDs)
         let breakdown = sampleMemoryBreakdown()
         return SystemSnapshot(
             processes: processes,
@@ -138,7 +139,7 @@ public actor ProcessSampler {
             totalCPU: totalCPU,
             processFootprintSum: footprintSum,
             epermProcessRSS: epermRSS,
-            invisiblePIDCount: invisibleCount
+            invisibleProcesses: invisible
         )
     }
 
@@ -189,6 +190,20 @@ public actor ProcessSampler {
             entry = IOIteratorNext(iterator)
         }
         return total
+    }
+
+    private func collectInvisibleProcesses(allPIDs: [pid_t], visiblePIDs: Set<pid_t>) -> [InvisibleProcess] {
+        allPIDs.compactMap { pid -> InvisibleProcess? in
+            guard !visiblePIDs.contains(pid) else { return nil }
+            var bsd = proc_bsdshortinfo()
+            let size = Int32(MemoryLayout<proc_bsdshortinfo>.size)
+            guard proc_pidinfo(pid, PROC_PIDT_SHORTBSDINFO, 0, &bsd, size) == size else { return nil }
+            let name = withUnsafePointer(to: bsd.pbsi_comm) { ptr in
+                ptr.withMemoryRebound(to: CChar.self, capacity: 16) { String(cString: $0) }
+            }
+            guard !name.isEmpty else { return nil }
+            return InvisibleProcess(pid: pid, name: name, uid: bsd.pbsi_uid)
+        }
     }
 
     private func listAllPIDs() -> [pid_t] {
