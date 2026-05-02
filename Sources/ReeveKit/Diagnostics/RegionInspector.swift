@@ -1,5 +1,7 @@
-import Darwin
+@preconcurrency import Darwin
 import Foundation
+
+private let kPageSize = UInt64(vm_kernel_page_size)
 
 public struct VMRegionCategory: Sendable, Identifiable {
     public let tag: UInt32
@@ -101,7 +103,7 @@ public enum RegionInspector {
         var address: UInt64 = 0
         var info = proc_regionwithpathinfo()
         let infoSize = Int32(MemoryLayout<proc_regionwithpathinfo>.size)
-        let pageSize = UInt64(vm_kernel_page_size)
+        let pageSize = kPageSize
 
         var buckets: [String: (resident: UInt64, dirty: UInt64, tag: UInt32)] = [:]
 

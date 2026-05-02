@@ -704,14 +704,7 @@ struct OverlayView: View {
                 .frame(width: 220)
             }
             Button {
-                NSApp.activate(ignoringOtherApps: true)
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                    if #available(macOS 14, *) {
-                        NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
-                    } else {
-                        NSApp.sendAction(Selector(("showPreferencesWindow:")), to: nil, from: nil)
-                    }
-                }
+                appState.mainWindow.show(appState: appState)
             } label: {
                 Image(systemName: "gearshape")
                     .font(.caption)

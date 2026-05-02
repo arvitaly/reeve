@@ -1,5 +1,7 @@
-import Darwin
+@preconcurrency import Darwin
 import Foundation
+
+private let kPageSize = UInt64(vm_kernel_page_size)
 
 /// Actor that reads live process data from the kernel using public libproc APIs.
 ///
@@ -60,8 +62,9 @@ public actor ProcessSampler {
             let diskReadRate: UInt64
             let diskWriteRate: UInt64
             let rusageOK = withUnsafeMutablePointer(to: &rusage) { ptr in
-                proc_pid_rusage(pid, RUSAGE_INFO_V4,
-                    unsafeBitCast(ptr, to: UnsafeMutablePointer<rusage_info_t?>.self))
+                ptr.withMemoryRebound(to: rusage_info_t?.self, capacity: 1) {
+                    proc_pid_rusage(pid, RUSAGE_INFO_V4, $0)
+                }
             }
             if rusageOK == 0, let prev = diskBaselines[pid] {
                 let readDelta = rusage.ri_diskio_bytesread >= prev.read
@@ -143,7 +146,7 @@ public actor ProcessSampler {
             }
         }
         guard kr == KERN_SUCCESS else { return nil }
-        let ps = UInt64(vm_kernel_page_size)
+        let ps = kPageSize
         return MemoryBreakdown(
             wired: UInt64(vmStats.wire_count) * ps,
             active: UInt64(vmStats.active_count) * ps,

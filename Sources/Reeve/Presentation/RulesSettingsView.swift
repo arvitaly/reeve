@@ -1,28 +1,6 @@
 import SwiftUI
 import ReeveKit
 
-// MARK: - Root (Settings window)
-
-struct RulesSettingsView: View {
-    @EnvironmentObject var appState: AppState
-
-    var body: some View {
-        TabView {
-            RulesTab()
-                .environmentObject(appState)
-                .tabItem { Label("Rules", systemImage: "slider.horizontal.3") }
-            PressureTab()
-                .environmentObject(appState)
-                .tabItem { Label("Pressure", systemImage: "memorychip") }
-            LogTab(groupRuleEngine: appState.groupRuleEngine)
-                .tabItem { Label("Log", systemImage: "list.bullet.rectangle") }
-            GeneralTab()
-                .tabItem { Label("General", systemImage: "gearshape") }
-        }
-        .frame(width: 720, height: 520)
-    }
-}
-
 // MARK: - Rules tab
 
 struct RulesTab: View {

@@ -174,14 +174,7 @@ struct CalmPopover: View {
                 .foregroundStyle(Color.rvTextFaint)
             Divider().frame(height: 14)
             Button("Settings") {
-                NSApp.activate(ignoringOtherApps: true)
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                    if #available(macOS 14, *) {
-                        NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
-                    } else {
-                        NSApp.sendAction(Selector(("showPreferencesWindow:")), to: nil, from: nil)
-                    }
-                }
+                mainWindow.show(appState: appState)
             }
             .buttonStyle(.plain)
             .foregroundStyle(Color.rvTextFaint)

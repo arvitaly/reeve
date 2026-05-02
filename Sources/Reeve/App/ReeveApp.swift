@@ -48,6 +48,10 @@ final class AppState: ObservableObject {
         groupRuleEngine.connect(to: engine)
         groupRuleEngine.onKill = { [weak self] in self?.triggerKillFlash() }
         overlay.configure(appState: self)  // must precede any show() call
+        notificationDelegate.onTap = { [weak self] in
+            guard let self else { return }
+            self.mainWindow.show(appState: self)
+        }
         requestNotificationAuthorization()
         observeGroupActionLog()
         hotkey.register { [weak overlay] in overlay?.toggle() }
@@ -135,6 +139,8 @@ final class AppState: ObservableObject {
 // MARK: - Notification delegate
 
 final class NotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
+    var onTap: (() -> Void)?
+
     func userNotificationCenter(
         _ center: UNUserNotificationCenter,
         willPresent notification: UNNotification,
@@ -148,9 +154,7 @@ final class NotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
         didReceive response: UNNotificationResponse,
         withCompletionHandler completionHandler: @escaping () -> Void
     ) {
-        DispatchQueue.main.async {
-            NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
-        }
+        DispatchQueue.main.async { [weak self] in self?.onTap?() }
         completionHandler()
     }
 }
@@ -171,10 +175,5 @@ struct ReeveApp: App {
                 .environmentObject(state)
         }
         .menuBarExtraStyle(.window)
-
-        Settings {
-            RulesSettingsView()
-                .environmentObject(state)
-        }
     }
 }
