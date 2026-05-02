@@ -464,12 +464,18 @@ private struct CalmRow: View {
                 cache: diagnosticCache
             )
 
-            smartSuggestion
+            if !group.invisibleNames.isEmpty {
+                daemonList
+            }
 
-            if confirmingQuit {
-                quitPreflight
-            } else {
-                actionRow
+            if group.id != 0 {
+                smartSuggestion
+
+                if confirmingQuit {
+                    quitPreflight
+                } else {
+                    actionRow
+                }
             }
         }
         .padding(.init(top: 4, leading: 32, bottom: 10, trailing: 16))
@@ -546,6 +552,33 @@ private struct CalmRow: View {
                 ActionChip(label: "Uncap", icon: "\u{25CB}") { onRemoveCap() }
             }
         }
+    }
+
+    private var daemonList: some View {
+        let top = group.processes.sorted { $0.residentMemory > $1.residentMemory }.prefix(20)
+        return VStack(alignment: .leading, spacing: 2) {
+            ForEach(Array(top), id: \.pid) { proc in
+                HStack {
+                    Text(proc.name)
+                        .font(.system(size: 10.5, design: .monospaced))
+                        .foregroundStyle(Color.rvTextDim)
+                        .lineLimit(1)
+                    Spacer()
+                    Text(proc.formattedMemory)
+                        .font(.system(size: 10, design: .monospaced))
+                        .foregroundStyle(Color.rvTextFaint)
+                }
+            }
+            if group.processes.count > 20 {
+                Text("+ \(group.processes.count - 20) more")
+                    .font(.system(size: 10))
+                    .foregroundStyle(Color.rvTextFaint)
+                    .padding(.top, 2)
+            }
+        }
+        .padding(10)
+        .background(Color.rvInputBg, in: RoundedRectangle(cornerRadius: 8))
+        .padding(.bottom, 10)
     }
 
     private var quitPreflight: some View {

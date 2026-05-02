@@ -359,7 +359,6 @@ func buildApplicationGroups(snapshot: SystemSnapshot) -> (apps: [ApplicationGrou
                 physFootprint: inv.rssBytes
             )
         }
-        let total = procs.reduce(UInt64(0)) { $0 + $1.residentMemory }
         apps.append(ApplicationGroup(
             id: 0,
             displayName: "macOS System (\(procs.count))",
