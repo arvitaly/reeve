@@ -17,7 +17,9 @@ enum SortMode: String, CaseIterable {
 struct ApplicationGroup: Identifiable {
     let id: pid_t  // root process PID (NSRunningApplication.processIdentifier)
     let displayName: String
+    let bundleIdentifier: String?
     let icon: NSImage?
+    let category: AppCategory
     let processes: [ProcessRecord]
 
     /// Footprint-based total (compressed + resident + IOKit). Falls back to RSS per-process
@@ -27,6 +29,7 @@ struct ApplicationGroup: Identifiable {
     }
     var totalRSS: UInt64 { processes.reduce(0) { $0 + $1.residentMemory } }
     var totalCPU: Double { processes.reduce(0) { $0 + $1.cpuPercent } }
+    var totalDiskRead: UInt64 { processes.reduce(0) { $0 + $1.diskReadRate } }
     var totalDiskWrite: UInt64 { processes.reduce(0) { $0 + $1.diskWriteRate } }
     var isReeve: Bool { processes.contains { $0.isReeve } }
     var isSuspended: Bool { !processes.isEmpty && processes.allSatisfy { $0.isSuspended } }
@@ -45,6 +48,99 @@ struct ApplicationGroup: Identifiable {
 // processes that are invisible to the sampler (PROC_PIDTASKINFO fails with EPERM).
 // We recover the link by calling PROC_PIDT_SHORTBSDINFO on the phantom parent —
 // that flavor is readable without elevated privileges.
+// MARK: - Bundle ID → category
+
+private let categoryByBundlePrefix: [(prefix: String, category: AppCategory)] = [
+    // Browsers
+    ("com.google.Chrome", .browser),
+    ("com.apple.Safari", .browser),
+    ("company.thebrowser.Browser", .browser),  // Arc
+    ("org.mozilla.firefox", .browser),
+    ("com.operasoftware.Opera", .browser),
+    ("com.brave.Browser", .browser),
+    ("com.vivaldi.Vivaldi", .browser),
+    ("com.microsoft.edgemac", .browser),
+    // Dev
+    ("com.apple.dt.Xcode", .dev),
+    ("com.microsoft.VSCode", .dev),
+    ("com.docker.", .dev),
+    ("com.jetbrains.", .dev),
+    ("com.sublimetext.", .dev),
+    ("com.sublimehq.", .dev),
+    ("abnerworks.Typora", .dev),
+    ("com.github.atom", .dev),
+    ("dev.zed.Zed", .dev),
+    ("com.todesktop.230313mzl4w4u92", .dev),  // Cursor
+    // Terminals (also dev)
+    ("com.apple.Terminal", .dev),
+    ("com.googlecode.iterm2", .dev),
+    ("dev.warp.Warp", .dev),
+    ("io.alacritty", .dev),
+    ("net.kovidgoyal.kitty", .dev),
+    ("com.github.wez.wezterm", .dev),
+    ("co.zeit.hyper", .dev),
+    // Comms
+    ("com.tinyspeck.slackmacgap", .comm),
+    ("com.apple.MobileSMS", .comm),
+    ("com.apple.mail", .comm),
+    ("ru.keepcoder.Telegram", .comm),
+    ("com.hnc.Discord", .comm),
+    ("us.zoom.xos", .comm),
+    ("com.microsoft.teams", .comm),
+    ("com.skype.", .comm),
+    ("com.facebook.archon", .comm),  // Messenger
+    ("WhatsApp", .comm),
+    // Media
+    ("com.spotify.", .media),
+    ("com.apple.Music", .media),
+    ("com.apple.TV", .media),
+    ("com.apple.podcasts", .media),
+    ("io.mpv", .media),
+    ("com.colliderli.iina", .media),
+    ("org.videolan.vlc", .media),
+    ("com.apple.QuickTimePlayerX", .media),
+    ("com.apple.Photos", .media),
+    ("com.apple.Preview", .media),
+    // Creative
+    ("com.figma.", .creative),
+    ("com.bohemiancoding.sketch", .creative),
+    ("com.adobe.", .creative),
+    ("com.notion.", .creative),
+    ("md.obsidian", .creative),
+    ("com.apple.iWork.", .creative),
+    ("com.apple.Pages", .creative),
+    ("com.apple.Keynote", .creative),
+    ("com.apple.Numbers", .creative),
+    ("com.microsoft.Word", .creative),
+    ("com.microsoft.Excel", .creative),
+    ("com.microsoft.Powerpoint", .creative),
+    // System
+    ("com.apple.finder", .system),
+    ("com.apple.dock", .system),
+    ("com.apple.SystemPreferences", .system),
+    ("com.apple.systempreferences", .system),
+    ("com.apple.ActivityMonitor", .system),
+    ("com.apple.loginwindow", .system),
+    // Utility
+    ("com.1password.", .utility),
+    ("com.bitwarden.", .utility),
+    ("com.noodlesoft.Hazel", .utility),
+    ("com.hegenberg.BetterTouchTool", .utility),
+    ("com.raycast.", .utility),
+    ("com.alfredapp.", .utility),
+    ("com.contextsformac.", .utility),
+]
+
+func categorize(bundleID: String?) -> AppCategory {
+    guard let bid = bundleID else { return .system }
+    if bid.contains("reeve") || bid.contains("Reeve") { return .utility }
+    for (prefix, cat) in categoryByBundlePrefix {
+        if bid.hasPrefix(prefix) || bid.localizedCaseInsensitiveContains(prefix) { return cat }
+    }
+    if bid.hasPrefix("com.apple.") { return .system }
+    return .utility
+}
+
 private let terminalBundleIDs: Set<String> = [
     "com.apple.Terminal",
     "com.googlecode.iterm2",
@@ -110,7 +206,9 @@ private func resolveTerminalTabs(
         groups.append(ApplicationGroup(
             id: mainNode.record.pid,
             displayName: tabGroupName(terminalName: appName, shell: mainNode),
+            bundleIdentifier: nil,
             icon: icon,
+            category: .dev,
             processes: combined
         ))
     }
@@ -157,7 +255,9 @@ func buildApplicationGroups(snapshot: SystemSnapshot) -> (apps: [ApplicationGrou
         apps.append(ApplicationGroup(
             id: pid,
             displayName: app.localizedName ?? rootNode.record.name,
+            bundleIdentifier: app.bundleIdentifier,
             icon: app.icon,
+            category: categorize(bundleID: app.bundleIdentifier),
             processes: procs
         ))
     }

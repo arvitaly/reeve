@@ -161,7 +161,8 @@ struct ReeveApp: App {
 
     var body: some Scene {
         MenuBarExtra {
-            MenuBarView(engine: state.engine, overlay: state.overlay, hotkey: state.hotkey,
+            CalmPopover(engine: state.engine, groupRuleEngine: state.groupRuleEngine,
+                        overlay: state.overlay, hotkey: state.hotkey,
                         mainWindow: state.mainWindow)
                 .environmentObject(state)
                 .environment(\.iconCache, state.iconCache)

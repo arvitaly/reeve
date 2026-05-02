@@ -54,13 +54,3 @@ struct MiniBar: View {
     }
 }
 
-/// 6 px severity indicator dot.
-struct SeverityDot: View {
-    let severity: Severity
-
-    var body: some View {
-        Circle()
-            .fill(severity.dotColor)
-            .frame(width: 6, height: 6)
-    }
-}

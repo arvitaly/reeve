@@ -8,6 +8,9 @@ let package = Package(
         .library(name: "ReeveKit", targets: ["ReeveKit"]),
         .executable(name: "Reeve", targets: ["Reeve"]),
     ],
+    dependencies: [
+        .package(url: "https://github.com/pointfreeco/swift-snapshot-testing", from: "1.17.0"),
+    ],
     targets: [
         .target(
             name: "ReeveKit",
@@ -25,6 +28,19 @@ let package = Package(
             name: "ReeveKitTests",
             dependencies: ["ReeveKit"],
             path: "Tests/ReeveKitTests"
+        ),
+        .testTarget(
+            name: "ReeveTests",
+            dependencies: ["Reeve"],
+            path: "Tests/ReeveTests"
+        ),
+        .testTarget(
+            name: "ReeveSnapshotTests",
+            dependencies: [
+                "Reeve",
+                .product(name: "SnapshotTesting", package: "swift-snapshot-testing"),
+            ],
+            path: "Tests/ReeveSnapshotTests"
         ),
     ]
 )

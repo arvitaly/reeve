@@ -111,20 +111,20 @@ struct GroupActionLogEntry: Identifiable {
 @MainActor
 final class GroupRuleEngine: ObservableObject {
     @Published private(set) var actionLog: [GroupActionLogEntry] = []
-    @Published private(set) var groupMemHistory: [String: [Double]] = [:]   // GB, 30-sample rolling
-    @Published private(set) var systemMemHistory: [Double] = []             // GB, 30-sample rolling
-    @Published private(set) var systemCPUHistory: [Double] = []             // percent, 30-sample rolling
+    @Published private(set) var groupMemHistory: [String: [Double]] = [:]   // MB, 60-sample rolling
+    @Published private(set) var groupCpuHistory: [String: [Double]] = [:]   // percent, 60-sample rolling
+    @Published private(set) var systemMemHistory: [Double] = []             // GB, 60-sample rolling
+    @Published private(set) var systemCPUHistory: [Double] = []             // percent, 60-sample rolling
 
     var specs: [GroupRuleSpec] = []
     var pressurePolicy = MemoryPressurePolicy()
     var onKill: (() -> Void)?
     private var cooldowns: [String: ContinuousClock.Instant] = [:]
     private var pressureCooldownUntil: ContinuousClock.Instant?
-    // Group displayNames already killed this pressure episode; reset when memory drops.
     private var pressureKilledGroups: Set<String> = []
     private var cancellable: AnyCancellable?
 
-    static let historyCapacity = 30
+    static let historyCapacity = 60
 
     func clearLog() { actionLog = [] }
 
@@ -197,17 +197,27 @@ final class GroupRuleEngine: ObservableObject {
     }
 
     private func updateHistory(groups: [ApplicationGroup], snapshot: SystemSnapshot) {
-        var updated = groupMemHistory
+        var memUpdated = groupMemHistory
+        var cpuUpdated = groupCpuHistory
         let seen = Set(groups.map { $0.displayName })
         for group in groups {
-            let gb = Double(group.totalMemory) / 1_073_741_824
-            var buf = updated[group.displayName, default: []]
-            buf.append(gb)
-            if buf.count > Self.historyCapacity { buf.removeFirst(buf.count - Self.historyCapacity) }
-            updated[group.displayName] = buf
+            let mb = Double(group.totalMemory) / (1024 * 1024)
+            var memBuf = memUpdated[group.displayName, default: []]
+            memBuf.append(mb)
+            if memBuf.count > Self.historyCapacity { memBuf.removeFirst(memBuf.count - Self.historyCapacity) }
+            memUpdated[group.displayName] = memBuf
+
+            var cpuBuf = cpuUpdated[group.displayName, default: []]
+            cpuBuf.append(group.totalCPU)
+            if cpuBuf.count > Self.historyCapacity { cpuBuf.removeFirst(cpuBuf.count - Self.historyCapacity) }
+            cpuUpdated[group.displayName] = cpuBuf
         }
-        for key in updated.keys where !seen.contains(key) { updated.removeValue(forKey: key) }
-        groupMemHistory = updated
+        for key in memUpdated.keys where !seen.contains(key) {
+            memUpdated.removeValue(forKey: key)
+            cpuUpdated.removeValue(forKey: key)
+        }
+        groupMemHistory = memUpdated
+        groupCpuHistory = cpuUpdated
 
         if let usedMem = snapshot.usedMemory {
             var buf = systemMemHistory
@@ -216,9 +226,9 @@ final class GroupRuleEngine: ObservableObject {
             systemMemHistory = buf
         }
 
-        var cpuBuf = systemCPUHistory
-        cpuBuf.append(snapshot.totalCPU)
-        if cpuBuf.count > Self.historyCapacity { cpuBuf.removeFirst(cpuBuf.count - Self.historyCapacity) }
-        systemCPUHistory = cpuBuf
+        var sysCpuBuf = systemCPUHistory
+        sysCpuBuf.append(snapshot.totalCPU)
+        if sysCpuBuf.count > Self.historyCapacity { sysCpuBuf.removeFirst(sysCpuBuf.count - Self.historyCapacity) }
+        systemCPUHistory = sysCpuBuf
     }
 }

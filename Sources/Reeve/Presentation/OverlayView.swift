@@ -693,15 +693,31 @@ struct OverlayView: View {
             Text("\(apps.count) apps · \(procs) procs")
                 .font(.caption.monospacedDigit())
                 .foregroundStyle(.secondary)
+                .lineLimit(1)
+            Spacer()
             if widgetMode == .expanded && !showProcesses {
                 Picker("Sort", selection: $sortMode) {
                     ForEach(SortMode.allCases, id: \.self) { Text($0.rawValue).tag($0) }
                 }
                 .pickerStyle(.segmented)
                 .labelsHidden()
-                .frame(width: 110)
+                .frame(width: 220)
             }
-            Spacer()
+            Button {
+                NSApp.activate(ignoringOtherApps: true)
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    if #available(macOS 14, *) {
+                        NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+                    } else {
+                        NSApp.sendAction(Selector(("showPreferencesWindow:")), to: nil, from: nil)
+                    }
+                }
+            } label: {
+                Image(systemName: "gearshape")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .buttonStyle(.plain)
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 6)
