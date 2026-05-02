@@ -191,8 +191,24 @@ public actor ProcessSampler {
             inactive: UInt64(vmStats.inactive_count) * ps,
             free: UInt64(vmStats.free_count) * ps,
             appMemory: internal_ > purgeable ? internal_ - purgeable : 0,
-            gpuInUse: Self.sampleGPUMemory()
+            gpuInUse: Self.sampleGPUMemory(),
+            iokitPageable: Self.sampleIOKitPageable()
         )
+    }
+
+    /// IORegistry root → IOKitDiagnostics["Pageable allocation"] in bytes.
+    /// Backed by xnu's IOLib IOMallocPageable accounting; visible via `ioreg -l -r -d 1`.
+    private static func sampleIOKitPageable() -> UInt64 {
+        let root = IORegistryGetRootEntry(kIOMainPortDefault)
+        guard root != 0 else { return 0 }
+        defer { IOObjectRelease(root) }
+        var props: Unmanaged<CFMutableDictionary>?
+        guard IORegistryEntryCreateCFProperties(root, &props, kCFAllocatorDefault, 0) == KERN_SUCCESS,
+              let dict = props?.takeRetainedValue() as? [String: Any],
+              let diag = dict["IOKitDiagnostics"] as? [String: Any],
+              let pageable = diag["Pageable allocation"] as? UInt64
+        else { return 0 }
+        return pageable
     }
 
     /// IOKit IOAccelerator → PerformanceStatistics → "In use system memory".

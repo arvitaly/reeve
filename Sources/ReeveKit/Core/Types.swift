@@ -115,6 +115,10 @@ public struct MemoryBreakdown: Sendable {
     public let free: UInt64
     public let appMemory: UInt64
     public let gpuInUse: UInt64
+    /// Sum of IOKit's "Pageable allocation" from IORegistry root → IOKitDiagnostics.
+    /// Backs IOSurfaces, GPU buffers, video buffers, etc. — appears in vm_stat as
+    /// anonymous and may overlap with visible processes' iokit_mapped footprint.
+    public let iokitPageable: UInt64
 
     public var used: UInt64 { appMemory + wired + compressed }
     public var cached: UInt64 {
@@ -125,10 +129,10 @@ public struct MemoryBreakdown: Sendable {
 
     public init(wired: UInt64, active: UInt64, compressed: UInt64,
                 inactive: UInt64, free: UInt64, appMemory: UInt64,
-                gpuInUse: UInt64 = 0) {
+                gpuInUse: UInt64 = 0, iokitPageable: UInt64 = 0) {
         self.wired = wired; self.active = active; self.compressed = compressed
         self.inactive = inactive; self.free = free; self.appMemory = appMemory
-        self.gpuInUse = gpuInUse
+        self.gpuInUse = gpuInUse; self.iokitPageable = iokitPageable
     }
 }
 

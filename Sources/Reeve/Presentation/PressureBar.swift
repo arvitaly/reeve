@@ -92,9 +92,14 @@ private func memSegments(_ snapshot: SystemSnapshot) -> [MemSegment] {
     let physical = snapshot.physicalMemory
     let attributed = snapshot.processFootprintSum + snapshot.invisibleFootprintSum
     let procsBytes = min(attributed, bd.appMemory)
-    let other = bd.appMemory.subtractingClamped(procsBytes)
+    let remaining = bd.appMemory.subtractingClamped(procsBytes)
+    // IOKit pageable may overlap with iokit_mapped already in phys_footprint;
+    // clamp to remaining unattributed appMemory so it never double-counts.
+    let iokitBytes = min(bd.iokitPageable, remaining)
+    let other = remaining.subtractingClamped(iokitBytes)
     let used: [MemSegment] = [
         MemSegment(id: "Apps", bytes: procsBytes, color: .rvMemActive),
+        MemSegment(id: "IOKit", bytes: iokitBytes, color: .blue.opacity(0.55)),
         MemSegment(id: "Other anon", bytes: other, color: .gray.opacity(0.45)),
         MemSegment(id: "GPU", bytes: bd.gpuInUse, color: .purple.opacity(0.7)),
         MemSegment(id: "Wired", bytes: bd.wired, color: .rvMemWired),
