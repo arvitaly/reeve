@@ -47,6 +47,6 @@ final class RegionInspectorTests: XCTestCase {
 
     func testVMRegionCategoryIdentifiable() {
         let cat = VMRegionCategory(tag: 1, label: "MALLOC", residentBytes: 1000, dirtyBytes: 500)
-        XCTAssertEqual(cat.id, 1)
+        XCTAssertEqual(cat.id, "MALLOC")
     }
 }

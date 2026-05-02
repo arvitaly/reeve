@@ -10,17 +10,6 @@ struct DiagnosticPanel: View {
     @State private var confirmingRemediation: Remediation?
 
     var body: some View {
-        Group {
-            if !findings.isEmpty || isLoading {
-                content
-            }
-        }
-        .task(id: context.leadPID) {
-            await loadFindings()
-        }
-    }
-
-    private var content: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 6) {
                 Text("DIAGNOSTICS")
@@ -47,6 +36,9 @@ struct DiagnosticPanel: View {
         .padding(.vertical, 8)
         .background(Color.rvInputBg, in: RoundedRectangle(cornerRadius: 8))
         .padding(.bottom, 10)
+        .task(id: context.leadPID) {
+            await loadFindings()
+        }
     }
 
     private func findingRow(_ finding: Finding) -> some View {

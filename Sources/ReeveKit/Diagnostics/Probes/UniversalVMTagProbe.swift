@@ -7,8 +7,9 @@ public struct UniversalVMTagProbe: DiagnosticProbe, Sendable {
     public init() {}
 
     public func run(context: ProbeContext) async -> [Finding] {
-        guard let pid = context.leadPID else { return [] }
-        let categories = RegionInspector.inspect(pid: pid)
+        let pids = context.processes.map(\.pid)
+        guard !pids.isEmpty else { return [] }
+        let categories = RegionInspector.inspectAll(pids: pids)
         guard !categories.isEmpty else { return [] }
 
         let totalResident = categories.reduce(0 as UInt64) { $0 + $1.residentBytes }

@@ -60,13 +60,13 @@ struct CalmPopover: View {
                         }
                     }
                 }
-                .frame(minHeight: 300, maxHeight: 480)
+                .frame(minHeight: 400, maxHeight: 600)
             }
 
             Rectangle().fill(Color.rvHairline).frame(height: 0.5)
             footer
         }
-        .frame(width: 380)
+        .frame(width: 460)
         .onAppear {
             engine.showWindow(id: "menuBar")
             hotkey.tryActivate()
@@ -85,7 +85,7 @@ struct CalmPopover: View {
                 Text("Reeve")
                     .font(.system(size: 13, weight: .semibold))
                     .tracking(-0.1)
-                Text("\(appCount) apps")
+                Text("v\(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?") · \(appCount) apps")
                     .font(.system(size: 11, weight: .medium))
                     .foregroundStyle(Color.rvTextFaint)
                 Spacer()
