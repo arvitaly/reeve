@@ -68,15 +68,14 @@ struct MemorySummaryLine: View {
 
     private var chevron: some View {
         HStack(spacing: 2) {
-            Text(isExpanded ? "Hide" : "Detail")
+            Text("Detail")
                 .font(.system(size: 10, weight: .medium))
                 .foregroundStyle(Color.rvAccent)
-            Image(systemName: "chevron.right")
-                .font(.system(size: 9, weight: .semibold))
+            Image(systemName: "arrow.up.right.square")
+                .font(.system(size: 10, weight: .semibold))
                 .foregroundStyle(Color.rvAccent)
-                .rotationEffect(.degrees(isExpanded ? 90 : 0))
         }
-        .help(isExpanded ? "Collapse memory detail" : "Open memory detail")
+        .help("Open Memory tab in the main window")
     }
 
     private func shortBytes(_ bytes: UInt64) -> String {

@@ -5,7 +5,7 @@ HELPER_BIN     = $(BUNDLE)/Contents/MacOS/com.reeve.helper
 HELPER_PLIST   = $(BUNDLE)/Contents/Library/LaunchDaemons/com.reeve.helper.plist
 HELPER_ENTITLEMENTS = ReeveHelper.entitlements
 CONFIG    ?= debug
-VERSION   ?= 0.3.0
+VERSION   ?= 0.3.1
 ARCH      := $(shell uname -m)
 
 # Filled in by the developer; leave blank to skip codesigning.
@@ -20,7 +20,7 @@ NOTARIZE_PASSWORD ?=
 
 ZIPFILE = Reeve-$(VERSION).zip
 
-.PHONY: build run release sign notarize clean
+.PHONY: build run release sign notarize clean dev-helper-load dev-helper-unload dev-helper-status
 
 build:
 	swift build -c $(CONFIG) --product Reeve
@@ -113,3 +113,42 @@ notarize:
 
 clean:
 	rm -rf $(BUNDLE) .build Reeve-*.zip
+
+# ── Local dev helper install (bypass SMAppService) ──────────────────────────
+#
+# SMAppService refuses unsigned daemons. For local iteration without a
+# Developer ID certificate, ad-hoc-sign the helper, point a plist at the
+# absolute build path, and launchctl-bootstrap it directly.
+#
+# Run:  make dev-helper-load
+# After:  Reeve will connect via XPC even though Settings shows "Not found".
+# Stop:  make dev-helper-unload
+
+DEV_HELPER_LABEL = com.reeve.helper
+DEV_HELPER_PLIST_DST = /Library/LaunchDaemons/$(DEV_HELPER_LABEL).plist
+DEV_HELPER_BIN_ABS = $(shell pwd)/$(HELPER_BIN)
+
+dev-helper-load: build
+	codesign --force --sign - --options runtime --entitlements $(HELPER_ENTITLEMENTS) $(HELPER_BIN)
+	@echo '<?xml version="1.0" encoding="UTF-8"?>'                                                  >  /tmp/$(DEV_HELPER_LABEL).plist
+	@echo '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">' >> /tmp/$(DEV_HELPER_LABEL).plist
+	@echo '<plist version="1.0"><dict>'                                                             >> /tmp/$(DEV_HELPER_LABEL).plist
+	@echo '  <key>Label</key><string>$(DEV_HELPER_LABEL)</string>'                                  >> /tmp/$(DEV_HELPER_LABEL).plist
+	@echo '  <key>ProgramArguments</key><array><string>$(DEV_HELPER_BIN_ABS)</string></array>'      >> /tmp/$(DEV_HELPER_LABEL).plist
+	@echo '  <key>MachServices</key><dict><key>com.reeve.helper</key><true/></dict>'                >> /tmp/$(DEV_HELPER_LABEL).plist
+	@echo '  <key>RunAtLoad</key><false/>'                                                          >> /tmp/$(DEV_HELPER_LABEL).plist
+	@echo '</dict></plist>'                                                                         >> /tmp/$(DEV_HELPER_LABEL).plist
+	sudo cp /tmp/$(DEV_HELPER_LABEL).plist $(DEV_HELPER_PLIST_DST)
+	sudo chown root:wheel $(DEV_HELPER_PLIST_DST)
+	sudo chmod 0644 $(DEV_HELPER_PLIST_DST)
+	-sudo launchctl bootout system/$(DEV_HELPER_LABEL) 2>/dev/null
+	sudo launchctl bootstrap system $(DEV_HELPER_PLIST_DST)
+	@echo "\nLoaded.  Reeve.app will connect via XPC; Settings tab will still show 'Not found' (SMAppService only)."
+
+dev-helper-unload:
+	-sudo launchctl bootout system/$(DEV_HELPER_LABEL) 2>/dev/null
+	sudo rm -f $(DEV_HELPER_PLIST_DST)
+	@echo "Unloaded."
+
+dev-helper-status:
+	@sudo launchctl print system/$(DEV_HELPER_LABEL) 2>&1 | head -30 || echo "not loaded"

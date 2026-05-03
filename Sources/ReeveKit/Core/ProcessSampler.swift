@@ -59,12 +59,24 @@ public actor ProcessSampler {
 
     /// Off-actor: ask the privileged helper for kernel zones + region walks
     /// for every invisible PID we know about. No-op if helper isn't enabled.
+    ///
+    /// In DEBUG builds the SMAppService gate is bypassed so that helpers loaded
+    /// directly via `launchctl bootstrap` (the dev iteration path) are still
+    /// reachable — XPC attempts fail fast (~2 s timeout) when the service isn't
+    /// actually present.
     private func runHelperRefresh(invisiblePIDs: [pid_t]) {
         guard !helperRefreshInFlight else { return }
         let now = ContinuousClock.now
         guard now - helperRefreshedAt >= helperRefreshInterval else { return }
-        guard HelperLifecycle.shared.state == .enabled else {
-            // Helper toggled off — clear stale data once.
+
+        let allowed: Bool
+        #if DEBUG
+        allowed = true
+        #else
+        allowed = HelperLifecycle.shared.state == .enabled
+        #endif
+
+        guard allowed else {
             if kernelZones != nil || !helperRegions.isEmpty {
                 kernelZones = nil
                 helperRegions = [:]

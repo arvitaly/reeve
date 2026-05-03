@@ -7,29 +7,38 @@ import ReeveKit
 
 struct MainView: View {
     @EnvironmentObject var appState: AppState
+    @AppStorage("mainSelectedTab") private var selectedTab: String = "processes"
 
     var body: some View {
-        TabView {
+        TabView(selection: $selectedTab) {
             ProcessesTab(engine: appState.engine)
+                .tag("processes")
                 .tabItem { Label("Processes", systemImage: "cpu") }
             AppsTab(engine: appState.engine)
+                .tag("apps")
                 .tabItem { Label("Apps", systemImage: "app.badge") }
+            MemoryTab(engine: appState.engine)
+                .tag("memory")
+                .tabItem { Label("Memory", systemImage: "memorychip.fill") }
             DiskTab()
+                .tag("disk")
                 .tabItem { Label("Disk", systemImage: "internaldrive") }
             RulesTab()
                 .environmentObject(appState)
+                .tag("rules")
                 .tabItem { Label("Rules", systemImage: "slider.horizontal.3") }
             PressureTab()
                 .environmentObject(appState)
+                .tag("pressure")
                 .tabItem { Label("Pressure", systemImage: "memorychip") }
-            MemoryAttributionTab()
-                .tabItem { Label("Memory", systemImage: "memorychip.fill") }
             LogTab(groupRuleEngine: appState.groupRuleEngine)
+                .tag("log")
                 .tabItem { Label("Log", systemImage: "list.bullet.rectangle") }
             GeneralTab()
+                .tag("general")
                 .tabItem { Label("General", systemImage: "gearshape") }
         }
-        .frame(minWidth: 760, minHeight: 500)
+        .frame(minWidth: 820, minHeight: 560)
     }
 }
 
