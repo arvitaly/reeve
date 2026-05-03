@@ -85,19 +85,21 @@ struct MemoryTab: View {
     // MARK: - Breakdown rows
 
     private var breakdown: some View {
+        // Detail rows render in *canonical* model order — Apps · IOKit · Wired ·
+        // GPU · Compressed · Other · Cached · Free — never resorted on every
+        // tick. The bar and legend above resort by bytes to match the visual,
+        // but the text below has to sit still or the user can't read it.
         VStack(alignment: .leading, spacing: 18) {
             sectionHeader("USED — what's holding memory right now")
             VStack(spacing: 10) {
-                ForEach(model.usedSegments.filter { $0.bytes > 0 }
-                    .sorted { $0.bytes > $1.bytes }) { seg in
+                ForEach(model.usedSegments.filter { $0.bytes > 0 }) { seg in
                     DetailRow(seg: seg, totalPhys: model.physical, helperActive: model.helperActive,
                               onSetup: { showInstallSheet = true })
                 }
             }
             sectionHeader("AVAILABLE — what the system can hand out")
             VStack(spacing: 10) {
-                ForEach(model.availableSegments.filter { $0.bytes > 0 }
-                    .sorted { $0.bytes > $1.bytes }) { seg in
+                ForEach(model.availableSegments.filter { $0.bytes > 0 }) { seg in
                     DetailRow(seg: seg, totalPhys: model.physical, helperActive: model.helperActive,
                               onSetup: { showInstallSheet = true })
                 }
