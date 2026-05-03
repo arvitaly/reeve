@@ -383,8 +383,12 @@ private struct BigLegend: View {
     let model: MemoryModel
 
     var body: some View {
-        let segs = (model.usedSegments + model.availableSegments).filter { $0.bytes > 0 }
-            .sorted { $0.bytes > $1.bytes }
+        // Match the bar's left-to-right order: USED (biggest first), then AVAILABLE
+        // (biggest first). Sorting globally by bytes here would make the legend
+        // diverge from the visual segments — which is what the user just hit.
+        let used = model.usedSegments.filter { $0.bytes > 0 }.sorted { $0.bytes > $1.bytes }
+        let avail = model.availableSegments.filter { $0.bytes > 0 }.sorted { $0.bytes > $1.bytes }
+        let segs = used + avail
         WrapHStack(spacing: 14, lineSpacing: 6) {
             ForEach(segs) { seg in
                 HStack(spacing: 5) {

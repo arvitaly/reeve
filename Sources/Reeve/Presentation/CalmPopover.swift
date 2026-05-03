@@ -569,41 +569,8 @@ private struct CalmRow: View {
     }
 
     private var daemonList: some View {
-        let top = group.processes.sorted { $0.residentMemory > $1.residentMemory }.prefix(20)
-        return VStack(alignment: .leading, spacing: 2) {
-            ForEach(Array(top), id: \.pid) { proc in
-                HStack(spacing: 4) {
-                    Text(proc.name)
-                        .font(.system(size: 10.5, design: .monospaced))
-                        .foregroundStyle(Color.rvTextDim)
-                        .lineLimit(1)
-                    if proc.name.hasPrefix("com.reeve.help") {
-                        Text("(Reeve)")
-                            .font(.system(size: 9, weight: .medium))
-                            .foregroundStyle(Color.rvAccent.opacity(0.7))
-                    }
-                    Spacer()
-                    Text(proc.formattedMemory)
-                        .font(.system(size: 10, design: .monospaced))
-                        .foregroundStyle(Color.rvTextFaint)
-                }
-            }
-            if group.processes.count > 20 {
-                Text("+ \(group.processes.count - 20) more")
-                    .font(.system(size: 10))
-                    .foregroundStyle(Color.rvTextFaint)
-                    .padding(.top, 2)
-            }
-            Text(group.approximateMemory
-                 ? "RSS includes shared pages — sizes approximate, ranking reliable."
-                 : "phys_footprint via top — refreshed every 15s.")
-                .font(.system(size: 9))
-                .foregroundStyle(Color.rvTextFaint)
-                .padding(.top, 4)
-        }
-        .padding(10)
-        .background(Color.rvInputBg, in: RoundedRectangle(cornerRadius: 8))
-        .padding(.bottom, 10)
+        DaemonListView(group: group)
+            .padding(.bottom, 10)
     }
 
     private var quitPreflight: some View {
