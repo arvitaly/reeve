@@ -11,10 +11,12 @@ import ReeveKit
 
 let log = Logger(subsystem: HelperConstants.machServiceName, category: "main")
 log.info("ReeveHelper alive — pid \(getpid()), uid \(getuid())")
+DebugLog.line("ReeveHelper alive — pid \(getpid()), uid \(getuid())")
 
 let delegate = HelperListenerDelegate()
 let listener = NSXPCListener(machServiceName: HelperConstants.machServiceName)
 listener.delegate = delegate
 listener.resume()
+DebugLog.line("listener resumed on \(HelperConstants.machServiceName)")
 
 RunLoop.main.run()

@@ -13,8 +13,10 @@ final class HelperListenerDelegate: NSObject, NSXPCListenerDelegate {
 
     func listener(_ listener: NSXPCListener,
                   shouldAcceptNewConnection conn: NSXPCConnection) -> Bool {
+        DebugLog.line("listener: shouldAcceptNewConnection from pid=\(conn.processIdentifier)")
         guard AuditTokenCheck.validate(connection: conn) else {
             log.error("Rejecting connection from pid \(conn.processIdentifier) — audit token invalid")
+            DebugLog.line("listener: rejected pid=\(conn.processIdentifier) (audit-token)")
             return false
         }
 
@@ -22,12 +24,15 @@ final class HelperListenerDelegate: NSObject, NSXPCListenerDelegate {
         conn.exportedObject = HelperServer()
         conn.invalidationHandler = { [log] in
             log.debug("XPC connection invalidated")
+            DebugLog.line("conn invalidated")
         }
         conn.interruptionHandler = { [log] in
             log.debug("XPC connection interrupted")
+            DebugLog.line("conn interrupted")
         }
         conn.resume()
         log.info("Accepted connection from pid \(conn.processIdentifier)")
+        DebugLog.line("listener: accepted pid=\(conn.processIdentifier)")
         return true
     }
 }

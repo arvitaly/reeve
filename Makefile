@@ -5,7 +5,7 @@ HELPER_BIN     = $(BUNDLE)/Contents/MacOS/com.reeve.helper
 HELPER_PLIST   = $(BUNDLE)/Contents/Library/LaunchDaemons/com.reeve.helper.plist
 HELPER_ENTITLEMENTS = ReeveHelper.entitlements
 CONFIG    ?= debug
-VERSION   ?= 0.3.1
+VERSION   ?= 0.3.2
 ARCH      := $(shell uname -m)
 
 # Filled in by the developer; leave blank to skip codesigning.
@@ -138,17 +138,12 @@ dev-helper-load: build
 	@echo '  <key>MachServices</key><dict><key>com.reeve.helper</key><true/></dict>'                >> /tmp/$(DEV_HELPER_LABEL).plist
 	@echo '  <key>RunAtLoad</key><false/>'                                                          >> /tmp/$(DEV_HELPER_LABEL).plist
 	@echo '</dict></plist>'                                                                         >> /tmp/$(DEV_HELPER_LABEL).plist
-	sudo cp /tmp/$(DEV_HELPER_LABEL).plist $(DEV_HELPER_PLIST_DST)
-	sudo chown root:wheel $(DEV_HELPER_PLIST_DST)
-	sudo chmod 0644 $(DEV_HELPER_PLIST_DST)
-	-sudo launchctl bootout system/$(DEV_HELPER_LABEL) 2>/dev/null
-	sudo launchctl bootstrap system $(DEV_HELPER_PLIST_DST)
+	osascript -e 'do shell script "cp /tmp/$(DEV_HELPER_LABEL).plist $(DEV_HELPER_PLIST_DST) && chown root:wheel $(DEV_HELPER_PLIST_DST) && chmod 0644 $(DEV_HELPER_PLIST_DST) && (launchctl bootout system/$(DEV_HELPER_LABEL) 2>/dev/null; launchctl bootstrap system $(DEV_HELPER_PLIST_DST))" with administrator privileges with prompt "Reeve dev helper install"'
 	@echo "\nLoaded.  Reeve.app will connect via XPC; Settings tab will still show 'Not found' (SMAppService only)."
 
 dev-helper-unload:
-	-sudo launchctl bootout system/$(DEV_HELPER_LABEL) 2>/dev/null
-	sudo rm -f $(DEV_HELPER_PLIST_DST)
+	osascript -e 'do shell script "(launchctl bootout system/$(DEV_HELPER_LABEL) 2>/dev/null; rm -f $(DEV_HELPER_PLIST_DST))" with administrator privileges with prompt "Reeve dev helper uninstall"'
 	@echo "Unloaded."
 
 dev-helper-status:
-	@sudo launchctl print system/$(DEV_HELPER_LABEL) 2>&1 | head -30 || echo "not loaded"
+	osascript -e 'do shell script "launchctl print system/$(DEV_HELPER_LABEL) 2>&1 | head -30" with administrator privileges with prompt "Reeve dev helper status" || echo "not loaded"'

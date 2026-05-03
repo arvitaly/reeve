@@ -51,34 +51,10 @@ struct MemoryModel {
         let appsBytes = min(attributed, bd.appMemory)
         let remaining = bd.appMemory.subtractingClampedToZero(appsBytes)
         let iokitBytes = min(bd.iokitPageable, remaining)
-        let leftover = remaining.subtractingClampedToZero(iokitBytes)
-
-        // When the privileged helper is enabled, split "Other" into measured
-        // sub-categories (kernel zones, shared anon, page tables); otherwise
-        // keep a single unmeasurable segment with the diagonal-stripe pattern.
-        let kernelBytes: UInt64
-        let sharedAnonBytes: UInt64
-        let pageTableBytes: UInt64
-        let otherBytes: UInt64
-
-        if let zones = snapshot.kernelZones {
-            kernelBytes = min(zones.totalAllocatedBytes, leftover)
-            let afterKernel = leftover.subtractingClampedToZero(kernelBytes)
-
-            let regionTotals = (snapshot.helperRegions ?? [:]).values.reduce(into: (shared: UInt64(0), pageTable: UInt64(0))) {
-                $0.shared &+= $1.sharedAnonBytes
-                $0.pageTable &+= $1.pageTableBytes
-            }
-            sharedAnonBytes = min(regionTotals.shared, afterKernel)
-            let afterShared = afterKernel.subtractingClampedToZero(sharedAnonBytes)
-            pageTableBytes = min(regionTotals.pageTable, afterShared)
-            otherBytes = afterShared.subtractingClampedToZero(pageTableBytes)
-        } else {
-            kernelBytes = 0
-            sharedAnonBytes = 0
-            pageTableBytes = 0
-            otherBytes = leftover
-        }
+        let otherBytes = remaining.subtractingClampedToZero(iokitBytes)
+        // Helper data (kernel zones, per-PID page tables, shared anon) lives
+        // OUTSIDE the bar — it would double-count Wired / Apps. Surface it
+        // as informational context in the detail tab instead.
 
         let physical = snapshot.physicalMemory
         let usedBytes = bd.used                       // appMemory + wired + compressed
@@ -106,39 +82,6 @@ struct MemoryModel {
             isUnmeasurable: false,
             description: "Kernel-side buffers for graphics, audio and video that don't belong to a specific app.",
             source: "IORegistry root → IOKitDiagnostics[\"Pageable allocation\"], clamped to remaining anonymous"
-        ))
-
-        raw.append(MemorySegment(
-            id: "kernel-zones",
-            label: "Kernel zones",
-            bytes: kernelBytes,
-            color: .orange.opacity(0.55),
-            role: .used,
-            isUnmeasurable: false,
-            description: "Memory the kernel itself uses for its bookkeeping (process tables, IO descriptors, queues).",
-            source: "mach_zone_info via privileged helper"
-        ))
-
-        raw.append(MemorySegment(
-            id: "shared-anon",
-            label: "Shared between apps",
-            bytes: sharedAnonBytes,
-            color: .brown.opacity(0.45),
-            role: .used,
-            isUnmeasurable: false,
-            description: "Memory two or more apps are sharing — XPC buffers, mmap regions. Counted once.",
-            source: "Σ shared anonymous regions per task (helper) where share_mode == SM_SHARED"
-        ))
-
-        raw.append(MemorySegment(
-            id: "page-tables",
-            label: "Page tables",
-            bytes: pageTableBytes,
-            color: .gray.opacity(0.55),
-            role: .used,
-            isUnmeasurable: false,
-            description: "Bookkeeping the CPU needs to map virtual addresses to physical ones, scaled by every running process.",
-            source: "Σ regions tagged VM_MEMORY_PAGE_TABLE (helper)"
         ))
 
         raw.append(MemorySegment(

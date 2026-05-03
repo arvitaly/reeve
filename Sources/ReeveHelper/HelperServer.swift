@@ -12,11 +12,14 @@ final class HelperServer: NSObject, HelperWire {
     func handle(_ payload: Data, reply: @escaping (Data?, NSError?) -> Void) {
         do {
             let request = try HelperEnvelope.decodeRequest(payload)
+            DebugLog.line("server: request \(request)")
             let response = process(request)
+            DebugLog.line("server: replied with \(String(describing: response).prefix(120))")
             let encoded = try HelperEnvelope.encode(response)
             reply(encoded, nil)
         } catch {
             log.error("decode/encode failed: \(error.localizedDescription)")
+            DebugLog.line("server: decode/encode error \(error.localizedDescription)")
             reply(nil, error as NSError)
         }
     }
