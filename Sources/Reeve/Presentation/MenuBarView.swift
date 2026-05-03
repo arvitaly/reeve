@@ -58,7 +58,7 @@ struct MenuBarView: View {
                     .font(.caption.monospacedDigit())
                     .foregroundStyle(.secondary)
             }
-            PressureBar(snapshot: engine.snapshot)
+            PressureBar(snapshot: engine.snapshot, model: MemoryModel(snapshot: engine.snapshot))
             HStack(spacing: 6) {
                 TextField(showProcesses ? "Search processes" : "Search apps", text: $searchText)
                     .textFieldStyle(.roundedBorder)

@@ -139,7 +139,7 @@ struct OverlayView: View {
                 }
                 .buttonStyle(.plain)
             }
-            PressureBar(snapshot: engine.snapshot)
+            PressureBar(snapshot: engine.snapshot, model: MemoryModel(snapshot: engine.snapshot))
             if widgetMode == .expanded {
                 HStack(spacing: 6) {
                     TextField(showProcesses ? "Search processes" : "Search apps", text: $searchText)

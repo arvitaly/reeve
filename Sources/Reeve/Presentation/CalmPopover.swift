@@ -14,6 +14,8 @@ struct CalmPopover: View {
     @State private var expandedID: pid_t?
     @State private var filter: FilterMode = .all
     @State private var diagnosticCache = DiagnosticCache()
+    @State private var memoryDetailExpanded = false
+    @State private var memoryHelpVisible = false
 
     enum FilterMode { case all, high, capped }
 
@@ -74,6 +76,9 @@ struct CalmPopover: View {
         .onDisappear {
             engine.hideWindow(id: "menuBar")
         }
+        .sheet(isPresented: $memoryHelpVisible) {
+            MemoryHelpSheet(onClose: { memoryHelpVisible = false })
+        }
     }
 
     // MARK: Header
@@ -107,8 +112,34 @@ struct CalmPopover: View {
             }
             .padding(.bottom, 8)
 
-            PressureBar(snapshot: engine.snapshot)
+            let memModel = MemoryModel(snapshot: engine.snapshot)
+            PressureBar(snapshot: engine.snapshot, model: memModel)
+                .padding(.bottom, 6)
+
+            MemorySummaryLine(
+                model: memModel,
+                isExpanded: memoryDetailExpanded,
+                onToggle: {
+                    withAnimation(.easeOut(duration: 0.18)) { memoryDetailExpanded.toggle() }
+                }
+            )
+            .padding(.bottom, memoryDetailExpanded ? 8 : 10)
+
+            if memoryDetailExpanded {
+                MemoryDetailPanel(
+                    model: memModel,
+                    onAppsRowTap: {
+                        withAnimation(.easeIn(duration: 0.16)) { memoryDetailExpanded = false }
+                    },
+                    onDismiss: {
+                        withAnimation(.easeIn(duration: 0.16)) { memoryDetailExpanded = false }
+                    },
+                    onOpenHelp: { memoryHelpVisible = true },
+                    onOpenSettings: { mainWindow.show(appState: appState) }
+                )
+                .transition(.opacity.combined(with: .move(edge: .top)))
                 .padding(.bottom, 10)
+            }
 
             HStack(spacing: 4) {
                 filterChip("All", .all)
