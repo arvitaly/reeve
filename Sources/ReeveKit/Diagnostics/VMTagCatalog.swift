@@ -329,11 +329,6 @@ public enum VMTagCatalog {
             what: "Legacy Carbon framework state.",
             signal: "Only present in old apps."
         ),
-        "Foundation": Entry(
-            title: "Foundation framework",
-            what: "Foundation's internal allocations.",
-            signal: "Steady."
-        ),
         "Shared anonymous": Entry(
             title: "Shared between processes",
             what: "Memory mapped into multiple processes — XPC service buffers, mmap MAP_SHARED|MAP_ANON regions.",
