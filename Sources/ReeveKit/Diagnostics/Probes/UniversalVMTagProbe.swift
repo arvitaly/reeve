@@ -32,12 +32,33 @@ public struct UniversalVMTagProbe: DiagnosticProbe, Sendable {
 
         var findings: [Finding] = []
 
-        // Render every meaningful tag (≥ 50 MB or ≥ 10%) as its own row with
-        // plain-language meaning. This replaces the old comma-joined dump
-        // which the user rightly called useless.
+        // Special case: when most of the app's memory is untagged (Chrome's
+        // tcmalloc, Electron heap, etc.) the per-tag breakdown is noise. Emit
+        // one summary row that names *why* — far more useful than five rows
+        // of small tags adjacent to a giant "Untagged 96%".
+        let untaggedBytes = categories
+            .filter { isUntagged($0.label) }
+            .reduce(0 as UInt64) { $0 + $1.residentBytes }
+        let untaggedPct = totalResident == 0 ? 0 : Int(untaggedBytes * 100 / totalResident)
+
+        if untaggedPct >= 70 {
+            let untaggedMB = untaggedBytes / (1024 * 1024)
+            findings.append(Finding(
+                cause: "Custom allocator — \(untaggedMB) MB (\(untaggedPct)%)",
+                evidence: "This app uses an allocator the kernel can't introspect (Chrome / Electron use tcmalloc, JS runtimes use their own GC heaps). Per-tag breakdown isn't meaningful here — use the app-specific findings (renderer count, tab count, etc.) above.",
+                severity: .info
+            ))
+            return findings
+        }
+
+        // Otherwise: render every meaningful tag (≥ 50 MB or ≥ 10%) as its
+        // own row with plain-language meaning. Replaces the old comma-joined
+        // dump which the user rightly called useless.
         let threshold = max(UInt64(50 * 1024 * 1024), totalResident / 10)
-        let significant = categories.filter { $0.residentBytes >= threshold }
-        let displayed = significant.isEmpty ? Array(categories.prefix(3)) : significant
+        let significant = categories.filter { $0.residentBytes >= threshold && !isUntagged($0.label) }
+        let displayed = significant.isEmpty
+            ? Array(categories.filter { !isUntagged($0.label) }.prefix(3))
+            : significant
 
         for cat in displayed {
             let mb = cat.residentBytes / (1024 * 1024)
@@ -50,15 +71,18 @@ public struct UniversalVMTagProbe: DiagnosticProbe, Sendable {
             ))
         }
 
-        let smallSum = categories
-            .filter { $0.residentBytes < threshold }
+        // Small tags + (possibly) untagged below the headline threshold,
+        // collapsed to one row.
+        let displayedIDs = Set(displayed.map { $0.label })
+        let leftoverBytes = categories
+            .filter { !displayedIDs.contains($0.label) }
             .reduce(0 as UInt64) { $0 + $1.residentBytes }
-        if smallSum > 0 {
-            let mb = smallSum / (1024 * 1024)
-            let pct = Int(smallSum * 100 / max(totalResident, 1))
+        if leftoverBytes >= UInt64(20 * 1024 * 1024) {
+            let mb = leftoverBytes / (1024 * 1024)
+            let pct = Int(leftoverBytes * 100 / max(totalResident, 1))
             findings.append(Finding(
-                cause: "Smaller categories — \(mb) MB (\(pct)%)",
-                evidence: "Many tags too small to single out individually. Source: \(sourceLabel).",
+                cause: "Other categories — \(mb) MB (\(pct)%)",
+                evidence: "Many smaller tags + untagged regions the kernel didn't categorise. Source: \(sourceLabel).",
                 severity: .info
             ))
         }
@@ -112,6 +136,12 @@ public struct UniversalVMTagProbe: DiagnosticProbe, Sendable {
         }
 
         return findings
+    }
+
+    /// True when the label is the "we couldn't classify" bucket — kernel did
+    /// not assign a tag, or the tag isn't in our catalog ("Other", "Tag #N").
+    private func isUntagged(_ label: String) -> Bool {
+        label == "Other" || label.hasPrefix("Tag #")
     }
 
     /// Reduces helper-side `PIDRegionSummary` records into the same

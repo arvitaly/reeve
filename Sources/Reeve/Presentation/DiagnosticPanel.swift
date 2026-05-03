@@ -55,7 +55,7 @@ struct DiagnosticPanel: View {
                 Text(finding.evidence)
                     .font(.system(size: 10, weight: .regular))
                     .foregroundStyle(Color.rvTextFaint)
-                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             Spacer(minLength: 0)
