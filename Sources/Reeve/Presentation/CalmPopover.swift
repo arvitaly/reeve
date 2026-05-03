@@ -589,11 +589,16 @@ private struct CalmRow: View {
         let top = group.processes.sorted { $0.residentMemory > $1.residentMemory }.prefix(20)
         return VStack(alignment: .leading, spacing: 2) {
             ForEach(Array(top), id: \.pid) { proc in
-                HStack {
+                HStack(spacing: 4) {
                     Text(proc.name)
                         .font(.system(size: 10.5, design: .monospaced))
                         .foregroundStyle(Color.rvTextDim)
                         .lineLimit(1)
+                    if proc.name.hasPrefix("com.reeve.help") {
+                        Text("(Reeve)")
+                            .font(.system(size: 9, weight: .medium))
+                            .foregroundStyle(Color.rvAccent.opacity(0.7))
+                    }
                     Spacer()
                     Text(proc.formattedMemory)
                         .font(.system(size: 10, design: .monospaced))

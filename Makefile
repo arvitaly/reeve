@@ -1,8 +1,11 @@
 BUNDLE     = Reeve.app
 BINARY     = $(BUNDLE)/Contents/MacOS/Reeve
 INFOPLIST  = $(BUNDLE)/Contents/Info.plist
+HELPER_BIN     = $(BUNDLE)/Contents/MacOS/com.reeve.helper
+HELPER_PLIST   = $(BUNDLE)/Contents/Library/LaunchDaemons/com.reeve.helper.plist
+HELPER_ENTITLEMENTS = ReeveHelper.entitlements
 CONFIG    ?= debug
-VERSION   ?= 0.2.16
+VERSION   ?= 0.3.0
 ARCH      := $(shell uname -m)
 
 # Filled in by the developer; leave blank to skip codesigning.
@@ -20,11 +23,14 @@ ZIPFILE = Reeve-$(VERSION).zip
 .PHONY: build run release sign notarize clean
 
 build:
-	swift build -c $(CONFIG)
-	mkdir -p $(BUNDLE)/Contents/MacOS $(BUNDLE)/Contents/Resources
+	swift build -c $(CONFIG) --product Reeve
+	swift build -c $(CONFIG) --product ReeveHelper
+	mkdir -p $(BUNDLE)/Contents/MacOS $(BUNDLE)/Contents/Resources $(BUNDLE)/Contents/Library/LaunchDaemons
 	cp .build/$(ARCH)-apple-macosx/$(CONFIG)/Reeve $(BINARY)
+	cp .build/$(ARCH)-apple-macosx/$(CONFIG)/ReeveHelper $(HELPER_BIN)
 	cp Assets/AppIcon.icns $(BUNDLE)/Contents/Resources/AppIcon.icns
 	@$(MAKE) --no-print-directory _plist
+	@$(MAKE) --no-print-directory _helper_plist
 
 _plist:
 	@printf '<?xml version="1.0" encoding="UTF-8"?>\n\
@@ -42,6 +48,9 @@ _plist:
   <key>LSApplicationCategoryType</key><string>public.app-category.utilities</string>\n\
   <key>CFBundleIconFile</key><string>AppIcon</string>\n\
 </dict></plist>\n' > $(INFOPLIST)
+
+_helper_plist:
+	cp ReeveHelper.plist.template $(HELPER_PLIST)
 
 run: build
 	open $(BUNDLE)
@@ -76,11 +85,18 @@ publish: release
 	@echo "\nv$(VERSION) published to GitHub and homebrew-reeve tap."
 
 sign:
-	codesign --deep --force --options runtime \
+	# Helper first, then app bundle. No --deep — we sign each component
+	# individually with its own entitlements (Apple's recommended pattern
+	# for SMAppService daemons).
+	codesign --force --options runtime --timestamp \
+	  --sign "$(SIGN_IDENTITY)" \
+	  --entitlements $(HELPER_ENTITLEMENTS) \
+	  $(HELPER_BIN)
+	codesign --force --options runtime --timestamp \
 	  --sign "$(SIGN_IDENTITY)" \
 	  --entitlements Reeve.entitlements \
 	  $(BUNDLE)
-	@echo "Signed: $(BUNDLE)"
+	@echo "Signed: $(HELPER_BIN) and $(BUNDLE)"
 
 # Requires: APPLE_ID, TEAM_ID, NOTARIZE_PASSWORD env vars and a prior `make release`.
 notarize:

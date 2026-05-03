@@ -7,6 +7,7 @@ let package = Package(
     products: [
         .library(name: "ReeveKit", targets: ["ReeveKit"]),
         .executable(name: "Reeve", targets: ["Reeve"]),
+        .executable(name: "ReeveHelper", targets: ["ReeveHelper"]),
     ],
     dependencies: [
         .package(url: "https://github.com/pointfreeco/swift-snapshot-testing", from: "1.17.0"),
@@ -23,6 +24,14 @@ let package = Package(
             name: "Reeve",
             dependencies: ["ReeveKit"],
             path: "Sources/Reeve"
+        ),
+        .executableTarget(
+            name: "ReeveHelper",
+            dependencies: ["ReeveKit"],
+            path: "Sources/ReeveHelper",
+            swiftSettings: [
+                .enableExperimentalFeature("StrictConcurrency"),
+            ]
         ),
         .testTarget(
             name: "ReeveKitTests",

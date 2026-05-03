@@ -156,6 +156,13 @@ public struct SystemSnapshot: Sendable {
     public let epermProcessRSS: UInt64
     /// Processes visible to listAllPIDs but not to PROC_PIDTASKINFO. Names from PROC_PIDT_SHORTBSDINFO.
     public let invisibleProcesses: [InvisibleProcess]
+    /// Mach kernel zone snapshot from the privileged helper. Nil when the
+    /// helper is not installed or has not yet replied. Populated off-actor.
+    public let kernelZones: KernelZoneSnapshot?
+    /// Per-PID region attribution from the privileged helper, indexed by PID.
+    /// Nil when helper unavailable. Populated for invisible (root) processes
+    /// and optionally for visible apps.
+    public let helperRegions: [pid_t: PIDRegionSummary]?
 
     public init(
         processes: [ProcessRecord],
@@ -166,7 +173,9 @@ public struct SystemSnapshot: Sendable {
         totalCPU: Double = 0,
         processFootprintSum: UInt64 = 0,
         epermProcessRSS: UInt64 = 0,
-        invisibleProcesses: [InvisibleProcess] = []
+        invisibleProcesses: [InvisibleProcess] = [],
+        kernelZones: KernelZoneSnapshot? = nil,
+        helperRegions: [pid_t: PIDRegionSummary]? = nil
     ) {
         self.processes = processes
         self.sampledAt = sampledAt
@@ -177,6 +186,8 @@ public struct SystemSnapshot: Sendable {
         self.processFootprintSum = processFootprintSum
         self.epermProcessRSS = epermProcessRSS
         self.invisibleProcesses = invisibleProcesses
+        self.kernelZones = kernelZones
+        self.helperRegions = helperRegions
     }
 
     /// Sum of memory across invisible processes. When `top` has run, this is

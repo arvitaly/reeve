@@ -22,6 +22,8 @@ struct MainView: View {
             PressureTab()
                 .environmentObject(appState)
                 .tabItem { Label("Pressure", systemImage: "memorychip") }
+            MemoryAttributionTab()
+                .tabItem { Label("Memory", systemImage: "memorychip.fill") }
             LogTab(groupRuleEngine: appState.groupRuleEngine)
                 .tabItem { Label("Log", systemImage: "list.bullet.rectangle") }
             GeneralTab()

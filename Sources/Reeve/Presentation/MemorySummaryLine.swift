@@ -18,6 +18,9 @@ struct MemorySummaryLine: View {
                 unmeasuredBadge
             }
             Spacer(minLength: 4)
+            if model.helperActive {
+                helperDot
+            }
             chevron
         }
         .frame(height: 16)
@@ -54,6 +57,13 @@ struct MemorySummaryLine: View {
         .padding(.horizontal, 4)
         .padding(.vertical, 2)
         .background(Color.rvInputBg, in: RoundedRectangle(cornerRadius: 3))
+    }
+
+    private var helperDot: some View {
+        Circle()
+            .fill(Color.rvAccent.opacity(0.6))
+            .frame(width: 6, height: 6)
+            .help("Detailed attribution active. Helper running as root.")
     }
 
     private var chevron: some View {

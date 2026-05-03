@@ -79,6 +79,12 @@ struct MemoryDetailPanel: View {
             Text(headlineText)
                 .font(.system(size: 11, weight: .medium))
                 .foregroundStyle(Color.rvTextDim)
+            if model.helperActive {
+                Text("Detailed attribution active · Helper running as root")
+                    .font(RVFont.mono(size: 9.5))
+                    .foregroundStyle(Color.rvTextFaint)
+                    .padding(.top, 1)
+            }
         }
     }
 
@@ -148,7 +154,7 @@ struct MemoryDetailPanel: View {
                         .foregroundStyle(Color.rvTextFaint)
                         .lineLimit(2)
 
-                    if seg.isUnmeasurable && seg.bytes > 0 {
+                    if seg.isUnmeasurable && seg.bytes > 0 && !model.helperActive {
                         otherCTA
                             .padding(.top, 6)
                     }

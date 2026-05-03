@@ -28,6 +28,15 @@ public actor ProcessSampler {
     private var topRefreshInFlight: Bool = false
     private let topRefreshInterval: Duration = .seconds(15)
 
+    /// Privileged-helper data: kernel zones snapshot + per-PID region maps.
+    /// Populated only when the helper is registered & running. Refreshed
+    /// off-actor on its own cadence — never blocks sampling.
+    private var kernelZones: KernelZoneSnapshot?
+    private var helperRegions: [pid_t: PIDRegionSummary] = [:]
+    private var helperRefreshedAt: ContinuousClock.Instant = .now - .seconds(120)
+    private var helperRefreshInFlight: Bool = false
+    private let helperRefreshInterval: Duration = .seconds(10)
+
     public init() {}
 
     /// Off-actor execution + actor-isolated update. Invoked from `sample()` when stale.
@@ -46,6 +55,40 @@ public actor ProcessSampler {
         topFootprint = map
         topRefreshedAt = .now
         topRefreshInFlight = false
+    }
+
+    /// Off-actor: ask the privileged helper for kernel zones + region walks
+    /// for every invisible PID we know about. No-op if helper isn't enabled.
+    private func runHelperRefresh(invisiblePIDs: [pid_t]) {
+        guard !helperRefreshInFlight else { return }
+        let now = ContinuousClock.now
+        guard now - helperRefreshedAt >= helperRefreshInterval else { return }
+        guard HelperLifecycle.shared.state == .enabled else {
+            // Helper toggled off — clear stale data once.
+            if kernelZones != nil || !helperRegions.isEmpty {
+                kernelZones = nil
+                helperRegions = [:]
+            }
+            return
+        }
+        helperRefreshInFlight = true
+
+        Task.detached(priority: .background) { [weak self] in
+            let sampler = PrivilegedSampler.shared
+            async let zones: KernelZoneSnapshot? = try? await sampler.kernelZones()
+            async let regions: [pid_t: PIDRegionSummary]? = try? await sampler.regions(for: invisiblePIDs)
+            let resolvedZones = await zones
+            let resolvedRegions = await regions ?? [:]
+            await self?.acceptHelperRefresh(zones: resolvedZones, regions: resolvedRegions)
+        }
+    }
+
+    private func acceptHelperRefresh(zones: KernelZoneSnapshot?,
+                                     regions: [pid_t: PIDRegionSummary]) {
+        kernelZones = zones
+        helperRegions = regions
+        helperRefreshedAt = .now
+        helperRefreshInFlight = false
     }
 
     /// Captures a `SystemSnapshot` with current CPU, memory, and disk I/O for every
@@ -156,6 +199,7 @@ public actor ProcessSampler {
         let invisible = collectInvisibleProcesses(allPIDs: pids, visiblePIDs: visiblePIDs)
         let breakdown = sampleMemoryBreakdown()
         runTopRefresh()
+        runHelperRefresh(invisiblePIDs: invisible.map { $0.pid })
         return SystemSnapshot(
             processes: processes,
             sampledAt: .now,
@@ -165,7 +209,9 @@ public actor ProcessSampler {
             totalCPU: totalCPU,
             processFootprintSum: footprintSum,
             epermProcessRSS: epermRSS,
-            invisibleProcesses: invisible
+            invisibleProcesses: invisible,
+            kernelZones: kernelZones,
+            helperRegions: helperRegions.isEmpty ? nil : helperRegions
         )
     }
 
