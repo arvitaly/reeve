@@ -32,6 +32,26 @@ public struct UniversalVMTagProbe: DiagnosticProbe, Sendable {
 
         var findings: [Finding] = []
 
+        // Multi-process apps double-count shared frameworks: each renderer
+        // sees libchrome_framework / V8 / dyld_shared_cache as resident in
+        // its own address space, and our region walk sums across PIDs.
+        // When the inspector total significantly exceeds the group's
+        // phys_footprint sum, the percentages are not real — emit a single
+        // honest row instead of pretending. (Threshold 1.3× absorbs normal
+        // shared-page accounting noise on small groups.)
+        let groupFootprint = context.totalMemory
+        if context.processes.count > 1, groupFootprint > 0,
+           totalResident > groupFootprint * 13 / 10 {
+            let regionMB = totalResident / (1024 * 1024)
+            let footprintMB = groupFootprint / (1024 * 1024)
+            findings.append(Finding(
+                cause: "Region breakdown overcounted",
+                evidence: "Region walk shows \(regionMB) MB across \(context.processes.count) processes vs the app's actual \(footprintMB) MB footprint — shared frameworks (libchrome_framework / V8 / dyld_shared_cache) are counted in every process that maps them, so per-tag percentages aren't real. Use the app-specific findings above for actionable signal.",
+                severity: .info
+            ))
+            return findings
+        }
+
         // Special case: when most of the app's memory is untagged (Chrome's
         // tcmalloc, Electron heap, etc.) the per-tag breakdown is noise. Emit
         // one summary row that names *why* — far more useful than five rows
