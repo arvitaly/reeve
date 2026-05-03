@@ -60,7 +60,8 @@ struct DiagnosticPanel: View {
 
             Spacer(minLength: 0)
 
-            if let rem = finding.suggestedRemediation {
+            if let rem = finding.suggestedRemediation,
+               !isAdvisoryOnly(rem.kind) {
                 ActionChip(
                     label: rem.title,
                     kind: remediationChipKind(rem.kind),
@@ -127,5 +128,13 @@ struct DiagnosticPanel: View {
         case .move:                  return .accent
         case .reduceProcesses:       return .default
         }
+    }
+
+    /// `.reduceProcesses` is purely advisory — there's no automated action we
+    /// can take (we're not driving Chrome via AppleScript). Showing it as a
+    /// button is misleading; the hint is already in `finding.evidence`.
+    private func isAdvisoryOnly(_ kind: Remediation.Kind) -> Bool {
+        if case .reduceProcesses = kind { return true }
+        return false
     }
 }

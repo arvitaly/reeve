@@ -140,11 +140,65 @@ struct DaemonListView: View {
                 .foregroundStyle(Color.rvTextFaint)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.top, 2)
+        case .copyCommand(let command, let hint):
+            CopyCommandView(command: command, hint: hint)
+                .padding(.top, 2)
         case .immutable:
             Text("System component — leave alone.")
                 .font(.system(size: 10))
                 .foregroundStyle(Color.rvTextFaint)
                 .padding(.top, 2)
+        }
+    }
+}
+
+private struct CopyCommandView: View {
+    let command: String
+    let hint: String
+    @State private var copied = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Button(action: copy) {
+                HStack(spacing: 6) {
+                    Image(systemName: copied ? "checkmark" : "doc.on.doc")
+                        .font(.system(size: 10))
+                    Text(command)
+                        .font(.system(size: 10.5, design: .monospaced))
+                    Spacer(minLength: 4)
+                    Text(copied ? "Copied" : "Copy")
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundStyle(Color.rvTextFaint)
+                }
+                .foregroundStyle(copied ? Color.rvOk : Color.rvAccent)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(
+                    RoundedRectangle(cornerRadius: 5)
+                        .fill(Color.rvInputBg)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 5)
+                                .stroke(Color.rvHairline, lineWidth: 0.5)
+                        )
+                )
+            }
+            .buttonStyle(.plain)
+            .help("Click to copy this command")
+
+            Text(hint)
+                .font(.system(size: 10))
+                .foregroundStyle(Color.rvTextFaint)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private func copy() {
+        let pb = NSPasteboard.general
+        pb.clearContents()
+        pb.setString(command, forType: .string)
+        copied = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) {
+            copied = false
         }
     }
 }

@@ -32,19 +32,36 @@ public struct UniversalVMTagProbe: DiagnosticProbe, Sendable {
 
         var findings: [Finding] = []
 
-        let significant = categories.filter { $0.residentBytes >= 10 * 1024 * 1024 }
-        let summary = (significant.isEmpty ? Array(categories.prefix(5)) : significant)
-        let breakdown = summary.map { cat in
-            let mb = cat.residentBytes / (1024 * 1024)
-            let pct = totalResident > 0 ? Int(cat.residentBytes * 100 / totalResident) : 0
-            return "\(cat.label) \(mb)M (\(pct)%)"
-        }.joined(separator: " · ")
+        // Render every meaningful tag (≥ 50 MB or ≥ 10%) as its own row with
+        // plain-language meaning. This replaces the old comma-joined dump
+        // which the user rightly called useless.
+        let threshold = max(UInt64(50 * 1024 * 1024), totalResident / 10)
+        let significant = categories.filter { $0.residentBytes >= threshold }
+        let displayed = significant.isEmpty ? Array(categories.prefix(3)) : significant
 
-        findings.append(Finding(
-            cause: "Resident by VM tag",
-            evidence: "\(breakdown). via \(sourceLabel) — sum is RSS, not phys_footprint.",
-            severity: .info
-        ))
+        for cat in displayed {
+            let mb = cat.residentBytes / (1024 * 1024)
+            let pct = Int(cat.residentBytes * 100 / max(totalResident, 1))
+            let entry = VMTagCatalog.entry(for: cat.label)
+            findings.append(Finding(
+                cause: "\(entry.title) — \(mb) MB (\(pct)%)",
+                evidence: "\(entry.what) \(entry.signal)",
+                severity: .info
+            ))
+        }
+
+        let smallSum = categories
+            .filter { $0.residentBytes < threshold }
+            .reduce(0 as UInt64) { $0 + $1.residentBytes }
+        if smallSum > 0 {
+            let mb = smallSum / (1024 * 1024)
+            let pct = Int(smallSum * 100 / max(totalResident, 1))
+            findings.append(Finding(
+                cause: "Smaller categories — \(mb) MB (\(pct)%)",
+                evidence: "Many tags too small to single out individually. Source: \(sourceLabel).",
+                severity: .info
+            ))
+        }
 
         for cat in categories {
             let mb = cat.residentBytes / (1024 * 1024)

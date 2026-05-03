@@ -16,6 +16,7 @@ enum DaemonCatalog {
     enum Action: Sendable {
         case openSettings(URL, label: String)
         case advisory(String)
+        case copyCommand(command: String, hint: String)      // copyable shell line
         case immutable                                       // tied to system, no action
     }
 
@@ -335,6 +336,110 @@ enum DaemonCatalog {
             normalcy: "Steady. Required by your org's policy.",
             action: .immutable,
             loudness: .typicallySmall
+        )),
+
+        // Dev databases / services — usually launched via Homebrew Services.
+        (.exact("mysqld"), Entry(
+            title: "MySQL",
+            what: "MySQL database server. You probably installed it via Homebrew or Docker.",
+            normalcy: "300–500 MB resident is typical depending on InnoDB buffer pool size. Idles in the background even when you don't use it.",
+            action: .copyCommand(command: "brew services stop mysql",
+                                 hint: "If installed via Homebrew. Use `brew services list` to find the exact name (e.g. mysql, mysql@8.0)."),
+            loudness: .typicallyHeavy
+        )),
+        (.exact("mysqld_safe"), Entry(
+            title: "MySQL launcher",
+            what: "Wrapper that supervises mysqld and restarts it on crash.",
+            normalcy: "Tiny — the real footprint is in mysqld.",
+            action: .copyCommand(command: "brew services stop mysql",
+                                 hint: "Stops MySQL and the supervisor together."),
+            loudness: .typicallySmall
+        )),
+        (.exact("postgres"), Entry(
+            title: "PostgreSQL",
+            what: "PostgreSQL database server.",
+            normalcy: "100–500 MB depending on shared buffers + active connections. Idles in the background.",
+            action: .copyCommand(command: "brew services stop postgresql",
+                                 hint: "Use `brew services list` for the exact name (postgresql, postgresql@16, etc)."),
+            loudness: .typicallyHeavy
+        )),
+        (.prefix("postgres:"), Entry(
+            title: "PostgreSQL worker",
+            what: "Per-connection worker forked off the main postgres backend.",
+            normalcy: "Spawned per active connection. Memory mostly shared with the parent.",
+            action: .advisory("Stops automatically when the parent postgres is stopped."),
+            loudness: .scalesWithUsage
+        )),
+        (.exact("redis-server"), Entry(
+            title: "Redis",
+            what: "Redis in-memory key/value store.",
+            normalcy: "Memory == dataset size. If you forgot what's in it: redis-cli FLUSHALL.",
+            action: .copyCommand(command: "brew services stop redis",
+                                 hint: "Or `brew services list` for the exact name."),
+            loudness: .scalesWithUsage
+        )),
+        (.exact("mongod"), Entry(
+            title: "MongoDB",
+            what: "MongoDB database server.",
+            normalcy: "Memory tracks working-set size + WiredTiger cache (default ~50% of RAM minus 1 GB).",
+            action: .copyCommand(command: "brew services stop mongodb-community",
+                                 hint: "Or `brew services list` for the exact name (mongodb-community, mongodb@7.0, …)."),
+            loudness: .typicallyHeavy
+        )),
+        (.contains("rabbitmq-server"), Entry(
+            title: "RabbitMQ",
+            what: "RabbitMQ message broker. Mostly Erlang VM resident.",
+            normalcy: "200–500 MB even idle — Erlang's runtime baseline is heavy.",
+            action: .copyCommand(command: "brew services stop rabbitmq",
+                                 hint: "Stops the broker and the Erlang VM."),
+            loudness: .typicallyHeavy
+        )),
+        (.contains("elasticsearch"), Entry(
+            title: "Elasticsearch",
+            what: "Elasticsearch / OpenSearch search engine. Java-based, JVM heap.",
+            normalcy: "Multiple GB even when idle — JVM heap reserved up front.",
+            action: .copyCommand(command: "brew services stop elasticsearch",
+                                 hint: "Or `brew services list` for the exact name."),
+            loudness: .typicallyHeavy
+        )),
+        (.exact("clickhouse-server"), Entry(
+            title: "ClickHouse",
+            what: "ClickHouse column-store database.",
+            normalcy: "Holds dictionaries and uncompressed cache in memory.",
+            action: .copyCommand(command: "brew services stop clickhouse",
+                                 hint: "Or `brew services list` for the exact name."),
+            loudness: .typicallyHeavy
+        )),
+        (.contains("docker"), Entry(
+            title: "Docker Desktop",
+            what: "Docker's Linux VM and helpers running on macOS.",
+            normalcy: "Memory is whatever you configured in Docker Settings → Resources. Idle Docker still consumes the configured RAM.",
+            action: .advisory("Quit Docker Desktop from its menu bar icon, or lower the RAM allocation in Docker → Settings → Resources."),
+            loudness: .typicallyHeavy
+        )),
+        (.exact("ollama"), Entry(
+            title: "Ollama",
+            what: "Ollama LLM runner. Loads models into RAM on demand.",
+            normalcy: "Memory == size of currently-loaded model. Idle Ollama is small.",
+            action: .copyCommand(command: "brew services stop ollama",
+                                 hint: "Or kill the menubar app if running interactively."),
+            loudness: .scalesWithUsage
+        )),
+        (.exact("nginx"), Entry(
+            title: "nginx",
+            what: "nginx HTTP server.",
+            normalcy: "Tiny per-worker; memory is mostly buffers + caches.",
+            action: .copyCommand(command: "brew services stop nginx",
+                                 hint: "Or `brew services list` for the exact name."),
+            loudness: .typicallySmall
+        )),
+        (.exact("memcached"), Entry(
+            title: "memcached",
+            what: "memcached in-memory cache.",
+            normalcy: "Memory is the cache size you configured (default 64 MB).",
+            action: .copyCommand(command: "brew services stop memcached",
+                                 hint: "Or `brew services list` for the exact name."),
+            loudness: .scalesWithUsage
         )),
     ]
 }

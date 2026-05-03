@@ -28,15 +28,11 @@ public struct BrowserTabProbe: DiagnosticProbe, Sendable {
         let totalMB = renderers.reduce(0 as UInt64) { $0 + $1.effectiveMemory } / (1024 * 1024)
         let severity: Finding.Confidence = renderers.count > 30 ? .actionable : .advisory
 
+        let avgMB = totalMB / UInt64(max(renderers.count, 1))
         return [Finding(
             cause: "\(renderers.count) renderer processes (\(totalMB) MB)",
-            evidence: "Each tab/extension runs in its own process — memory scales linearly with tab count",
-            severity: severity,
-            suggestedRemediation: Remediation(
-                kind: .reduceProcesses(hint: "Close unused tabs to free ~\(totalMB / UInt64(renderers.count)) MB each"),
-                title: "Close tabs",
-                detail: "Each renderer averages \(totalMB / UInt64(renderers.count)) MB"
-            )
+            evidence: "Each tab / extension runs in its own renderer (~\(avgMB) MB avg). To shrink: in the browser, press ⌘W on tabs you don't need, or quit the browser entirely.",
+            severity: severity
         )]
     }
 }

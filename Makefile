@@ -5,7 +5,7 @@ HELPER_BIN     = $(BUNDLE)/Contents/MacOS/com.reeve.helper
 HELPER_PLIST   = $(BUNDLE)/Contents/Library/LaunchDaemons/com.reeve.helper.plist
 HELPER_ENTITLEMENTS = ReeveHelper.entitlements
 CONFIG    ?= debug
-VERSION   ?= 0.3.3
+VERSION   ?= 0.3.4
 ARCH      := $(shell uname -m)
 
 # Filled in by the developer; leave blank to skip codesigning.
